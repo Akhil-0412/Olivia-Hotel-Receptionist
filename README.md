@@ -11,7 +11,7 @@ Unlike traditional interactive voice response (IVR) systems, this agent utilizes
 - **Preference Search:** Capable of recommending rooms and packages based on conversational preferences.
 - **Decoupled Architecture:** Separation of the language reasoning layer, voice gateway, and business logic tools via FastMCP.
 
-## 🛠️ Integrated MCP Tools
+##  Integrated MCP Tools
 
 The agent performs actions through a decoupled FastMCP-compliant server that exposes the following capabilities:
 
