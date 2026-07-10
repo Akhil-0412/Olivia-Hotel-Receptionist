@@ -1,0 +1,1151 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>NexCell Hotels — Olivia AI Concierge</title>
+  <meta name="description" content="Speak with Olivia, NexCell Hotels' AI concierge. Book rooms, check availability, and get instant confirmation." />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Playfair+Display:ital,wght@0,600;1,400&display=swap" rel="stylesheet" />
+
+  <style>
+    /* ─────────────────────────────────────────────
+       DESIGN TOKENS
+    ───────────────────────────────────────────── */
+    :root {
+      --bg-deep:        #040810;
+      --bg-card:        #0b1423;
+      --bg-glass:       rgba(13, 21, 38, 0.72);
+      --accent-primary: #4B8BFF;
+      --accent-glow:    #00C8FF;
+      --accent-violet:  #7B4DFF;
+      --accent-teal:    #00E5C8;
+      --hotel-gold:     #D4A853;
+      --hotel-gold-dim: #a07a30;
+      --text-primary:   #EEF2FF;
+      --text-muted:     #6A7FA8;
+      --text-caption:   #B8C8E8;
+      --danger:         #FF4D6A;
+      --success:        #00C896;
+
+      --orb-size: 220px;
+      --border-glass: 1px solid rgba(75, 139, 255, 0.15);
+      --radius-lg: 24px;
+      --radius-pill: 9999px;
+      --shadow-glow-blue: 0 0 60px rgba(0, 200, 255, 0.25), 0 0 120px rgba(75, 139, 255, 0.1);
+    }
+
+    /* ─────────────────────────────────────────────
+       RESET & BASE
+    ───────────────────────────────────────────── */
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    html, body {
+      height: 100%;
+      font-family: 'Inter', sans-serif;
+      background: var(--bg-deep);
+      color: var(--text-primary);
+      overflow: hidden;
+    }
+
+    /* ─────────────────────────────────────────────
+       BACKGROUND: ANIMATED NEBULA GRADIENT
+    ───────────────────────────────────────────── */
+    body::before {
+      content: '';
+      position: fixed;
+      inset: 0;
+      background:
+        radial-gradient(ellipse 80% 60% at 20% 80%, rgba(75,139,255,0.12) 0%, transparent 60%),
+        radial-gradient(ellipse 60% 50% at 80% 20%, rgba(123,77,255,0.10) 0%, transparent 55%),
+        radial-gradient(ellipse 50% 40% at 55% 55%, rgba(0,200,255,0.06) 0%, transparent 50%);
+      animation: nebula-shift 18s ease-in-out infinite alternate;
+      pointer-events: none;
+      z-index: 0;
+    }
+    @keyframes nebula-shift {
+      0%   { transform: scale(1) translate(0,0); }
+      50%  { transform: scale(1.08) translate(-2%, 2%); }
+      100% { transform: scale(1) translate(2%, -1%); }
+    }
+
+    /* ─────────────────────────────────────────────
+       LAYOUT WRAPPER
+    ───────────────────────────────────────────── */
+    #app {
+      position: relative;
+      z-index: 1;
+      height: 100vh;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+    }
+
+    /* ─────────────────────────────────────────────
+       HEADER
+    ───────────────────────────────────────────── */
+    header {
+      width: 100%;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 18px 32px;
+      backdrop-filter: blur(16px) saturate(180%);
+      -webkit-backdrop-filter: blur(16px) saturate(180%);
+      background: rgba(4, 8, 16, 0.6);
+      border-bottom: var(--border-glass);
+      flex-shrink: 0;
+    }
+    .header-brand {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+    .header-logo {
+      height: 36px;
+      width: auto;
+      filter: drop-shadow(0 0 8px rgba(212, 168, 83, 0.5));
+    }
+    .header-name {
+      font-family: 'Playfair Display', serif;
+      font-size: 1.2rem;
+      font-weight: 600;
+      color: var(--hotel-gold);
+      letter-spacing: 0.02em;
+    }
+    .header-tagline {
+      font-size: 0.7rem;
+      color: var(--text-muted);
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+    }
+    #connection-badge {
+      display: flex;
+      align-items: center;
+      gap: 7px;
+      font-size: 0.72rem;
+      font-weight: 500;
+      letter-spacing: 0.06em;
+      text-transform: uppercase;
+      color: var(--text-muted);
+      background: rgba(255,255,255,0.05);
+      padding: 6px 14px;
+      border-radius: var(--radius-pill);
+      border: var(--border-glass);
+    }
+    #connection-badge .dot {
+      width: 7px; height: 7px;
+      border-radius: 50%;
+      background: var(--text-muted);
+      transition: background 0.4s, box-shadow 0.4s;
+    }
+    #connection-badge.live .dot {
+      background: var(--success);
+      box-shadow: 0 0 8px var(--success);
+      animation: dot-pulse 2s ease-in-out infinite;
+    }
+    @keyframes dot-pulse {
+      0%,100% { opacity: 1; } 50% { opacity: 0.4; }
+    }
+
+    /* ─────────────────────────────────────────────
+       MAIN STAGE
+    ───────────────────────────────────────────── */
+    #stage {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      width: 100%;
+      max-width: 860px;
+      padding: 24px 20px 16px;
+      position: relative;
+    }
+
+    /* ─────────────────────────────────────────────
+       WELCOME SCREEN
+    ───────────────────────────────────────────── */
+    #welcome-screen {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 24px;
+      text-align: center;
+      animation: fade-in 0.6s ease;
+    }
+    #welcome-screen h1 {
+      font-family: 'Playfair Display', serif;
+      font-size: clamp(2rem, 5vw, 3.2rem);
+      font-weight: 600;
+      background: linear-gradient(135deg, var(--hotel-gold) 0%, #f0d090 50%, var(--hotel-gold-dim) 100%);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      background-clip: text;
+      line-height: 1.2;
+    }
+    #welcome-screen p {
+      font-size: 1rem;
+      color: var(--text-muted);
+      max-width: 420px;
+      line-height: 1.6;
+      font-weight: 300;
+    }
+    #welcome-orb-preview {
+      width: 140px; height: 140px;
+      border-radius: 50%;
+      background: radial-gradient(circle at 38% 35%, #00e5ff 0%, #4B8BFF 35%, #7B4DFF 65%, #0a0f1a 100%);
+      box-shadow: 0 0 80px rgba(0,200,255,0.3), 0 0 160px rgba(75,139,255,0.15);
+      animation: idle-float 4s ease-in-out infinite;
+    }
+    #btn-connect {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      padding: 16px 40px;
+      background: linear-gradient(135deg, var(--accent-primary), var(--accent-violet));
+      border: none;
+      border-radius: var(--radius-pill);
+      color: #fff;
+      font-family: 'Inter', sans-serif;
+      font-size: 1rem;
+      font-weight: 600;
+      cursor: pointer;
+      letter-spacing: 0.03em;
+      box-shadow: 0 4px 30px rgba(75,139,255,0.4), 0 0 60px rgba(123,77,255,0.2);
+      transition: transform 0.2s ease, box-shadow 0.2s ease;
+    }
+    #btn-connect:hover {
+      transform: translateY(-3px) scale(1.03);
+      box-shadow: 0 8px 40px rgba(75,139,255,0.5), 0 0 80px rgba(123,77,255,0.25);
+    }
+    #btn-connect:active { transform: scale(0.97); }
+    #btn-connect svg { width: 20px; height: 20px; }
+
+    /* ─────────────────────────────────────────────
+       LIVE SESSION SCREEN
+    ───────────────────────────────────────────── */
+    #live-screen {
+      display: none;
+      flex-direction: column;
+      align-items: center;
+      gap: 20px;
+      width: 100%;
+    }
+    #live-screen.active { display: flex; animation: fade-in 0.5s ease; }
+
+    /* ─────────────────────────────────────────────
+       THE ORB
+    ───────────────────────────────────────────── */
+    #orb-container {
+      position: relative;
+      width: var(--orb-size);
+      height: var(--orb-size);
+    }
+    /* Outer ambient glow ring */
+    #orb-container::before {
+      content: '';
+      position: absolute;
+      inset: -30px;
+      border-radius: 50%;
+      background: radial-gradient(circle, rgba(0,200,255,0.08) 0%, transparent 70%);
+      animation: glow-breathe 4s ease-in-out infinite;
+    }
+    @keyframes glow-breathe {
+      0%,100% { opacity: 0.5; transform: scale(1); }
+      50%      { opacity: 1;   transform: scale(1.1); }
+    }
+
+    /* Ripple rings (appear on listening) */
+    .ripple-ring {
+      position: absolute;
+      border-radius: 50%;
+      border: 1.5px solid rgba(0,200,255,0.5);
+      inset: 0;
+      animation: ripple-out 1.8s ease-out infinite;
+      opacity: 0;
+    }
+    .ripple-ring:nth-child(2) { animation-delay: 0.6s; }
+    .ripple-ring:nth-child(3) { animation-delay: 1.2s; }
+    @keyframes ripple-out {
+      0%   { transform: scale(1);   opacity: 0.7; }
+      100% { transform: scale(1.9); opacity: 0;   }
+    }
+
+    /* The orb itself */
+    #orb {
+      position: absolute;
+      inset: 0;
+      border-radius: 50%;
+      background: radial-gradient(circle at 38% 32%, #00e5ff 0%, #4B8BFF 30%, #7B4DFF 60%, #0d1a30 100%);
+      box-shadow:
+        0 0 40px rgba(0,200,255,0.35),
+        0 0 80px rgba(75,139,255,0.2),
+        inset 0 0 30px rgba(0,0,0,0.4);
+      transition: transform 0.08s ease, box-shadow 0.15s ease, filter 0.15s ease;
+      will-change: transform, box-shadow;
+      overflow: hidden;
+    }
+    /* Shimmer layer */
+    #orb::before {
+      content: '';
+      position: absolute;
+      inset: -50%;
+      background: conic-gradient(
+        from 0deg,
+        transparent 0%,
+        rgba(255,255,255,0.08) 20%,
+        transparent 40%,
+        rgba(0,228,255,0.1) 60%,
+        transparent 80%
+      );
+      animation: shimmer-spin 6s linear infinite;
+      border-radius: 50%;
+    }
+    /* Highlight blob */
+    #orb::after {
+      content: '';
+      position: absolute;
+      top: 12%; left: 16%;
+      width: 38%; height: 28%;
+      background: radial-gradient(ellipse, rgba(255,255,255,0.28) 0%, transparent 100%);
+      border-radius: 50%;
+      transform: rotate(-25deg);
+    }
+    @keyframes shimmer-spin {
+      from { transform: rotate(0deg); }
+      to   { transform: rotate(360deg); }
+    }
+    @keyframes idle-float {
+      0%,100% { transform: translateY(0) scale(1); }
+      50%      { transform: translateY(-10px) scale(1.03); }
+    }
+
+    /* STATE CLASSES */
+    #orb.idle {
+      animation: idle-float 4s ease-in-out infinite;
+    }
+    #orb.listening {
+      animation: none;
+      transform: scale(1.12);
+      box-shadow:
+        0 0 60px rgba(0,200,255,0.55),
+        0 0 120px rgba(75,139,255,0.3),
+        inset 0 0 30px rgba(0,0,0,0.3);
+    }
+    #orb.listening::before { animation-duration: 2s; }
+    #orb.speaking {
+      animation: none;
+    }
+    #orb.thinking {
+      animation: none;
+      filter: hue-rotate(60deg) brightness(1.15);
+    }
+    #orb.thinking::before { animation-duration: 1.2s; }
+    #orb.error {
+      animation: orb-shake 0.4s ease-in-out;
+      background: radial-gradient(circle at 38% 32%, #ff6b6b 0%, #cc2255 50%, #0d1a30 100%);
+    }
+    @keyframes orb-shake {
+      0%,100% { transform: translateX(0); }
+      20% { transform: translateX(-8px); }
+      40% { transform: translateX(8px); }
+      60% { transform: translateX(-5px); }
+      80% { transform: translateX(5px); }
+    }
+
+    /* hide ripples by default, show on listening */
+    .ripple-ring { display: none; }
+    #orb-container.listening .ripple-ring { display: block; }
+
+    /* ─────────────────────────────────────────────
+       AGENT STATE LABEL
+    ───────────────────────────────────────────── */
+    #agent-state-label {
+      font-size: 0.72rem;
+      font-weight: 600;
+      letter-spacing: 0.12em;
+      text-transform: uppercase;
+      color: var(--text-muted);
+      transition: color 0.3s, opacity 0.3s;
+      margin-top: -8px;
+    }
+
+    /* ─────────────────────────────────────────────
+       CAPTION DISPLAY
+    ───────────────────────────────────────────── */
+    #caption-area {
+      text-align: center;
+      max-width: 500px;
+      min-height: 60px;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      gap: 6px;
+    }
+    #caption-speaker {
+      font-size: 0.68rem;
+      font-weight: 600;
+      letter-spacing: 0.1em;
+      text-transform: uppercase;
+      color: var(--accent-glow);
+      opacity: 0;
+      transition: opacity 0.3s;
+    }
+    #caption-speaker.visible { opacity: 1; }
+    #caption-text {
+      font-size: 1.05rem;
+      font-weight: 400;
+      color: var(--text-caption);
+      line-height: 1.55;
+      transition: opacity 0.3s;
+      min-height: 1.55em;
+    }
+
+    /* ─────────────────────────────────────────────
+       WAVEFORM BARS (agent speaking indicator)
+    ───────────────────────────────────────────── */
+    #waveform {
+      display: flex;
+      align-items: center;
+      gap: 3px;
+      height: 28px;
+      opacity: 0;
+      transition: opacity 0.3s;
+    }
+    #waveform.active { opacity: 1; }
+    #waveform .bar {
+      width: 3px;
+      background: linear-gradient(to top, var(--accent-primary), var(--accent-glow));
+      border-radius: 2px;
+      animation: wave-dance 0.8s ease-in-out infinite alternate;
+    }
+    #waveform .bar:nth-child(1)  { height: 8px;  animation-delay: 0s; }
+    #waveform .bar:nth-child(2)  { height: 18px; animation-delay: 0.1s; }
+    #waveform .bar:nth-child(3)  { height: 24px; animation-delay: 0.05s; }
+    #waveform .bar:nth-child(4)  { height: 20px; animation-delay: 0.15s; }
+    #waveform .bar:nth-child(5)  { height: 28px; animation-delay: 0.08s; }
+    #waveform .bar:nth-child(6)  { height: 22px; animation-delay: 0.18s; }
+    #waveform .bar:nth-child(7)  { height: 16px; animation-delay: 0.03s; }
+    #waveform .bar:nth-child(8)  { height: 10px; animation-delay: 0.12s; }
+    @keyframes wave-dance {
+      from { transform: scaleY(0.3); opacity: 0.6; }
+      to   { transform: scaleY(1);   opacity: 1; }
+    }
+
+    /* ─────────────────────────────────────────────
+       CONTROL BUTTONS
+    ───────────────────────────────────────────── */
+    #controls {
+      display: flex;
+      align-items: center;
+      gap: 16px;
+    }
+    .ctrl-btn {
+      width: 56px; height: 56px;
+      border-radius: 50%;
+      border: none;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      cursor: pointer;
+      transition: transform 0.18s ease, box-shadow 0.18s ease, background 0.18s ease;
+      outline: none;
+    }
+    .ctrl-btn:hover  { transform: scale(1.1); }
+    .ctrl-btn:active { transform: scale(0.93); }
+    #btn-end {
+      background: rgba(255, 77, 106, 0.15);
+      border: 1.5px solid rgba(255,77,106,0.4);
+      color: var(--danger);
+      box-shadow: 0 4px 20px rgba(255,77,106,0.2);
+    }
+    #btn-end:hover { background: rgba(255,77,106,0.28); box-shadow: 0 6px 30px rgba(255,77,106,0.35); }
+    #btn-mic {
+      background: rgba(75,139,255,0.15);
+      border: 1.5px solid rgba(75,139,255,0.4);
+      color: var(--accent-primary);
+      box-shadow: 0 4px 20px rgba(75,139,255,0.2);
+      width: 68px; height: 68px;
+    }
+    #btn-mic:hover { background: rgba(75,139,255,0.28); box-shadow: 0 6px 30px rgba(75,139,255,0.35); }
+    #btn-mic.muted {
+      background: rgba(255,77,106,0.12);
+      border-color: rgba(255,77,106,0.35);
+      color: var(--danger);
+    }
+    .ctrl-btn svg { width: 22px; height: 22px; }
+    #btn-mic svg  { width: 26px; height: 26px; }
+
+    /* ─────────────────────────────────────────────
+       TRANSCRIPT PANEL
+    ───────────────────────────────────────────── */
+    #transcript-panel {
+      position: fixed;
+      bottom: 0; left: 0; right: 0;
+      height: 46px;
+      background: var(--bg-glass);
+      backdrop-filter: blur(20px) saturate(180%);
+      -webkit-backdrop-filter: blur(20px) saturate(180%);
+      border-top: var(--border-glass);
+      border-radius: var(--radius-lg) var(--radius-lg) 0 0;
+      transition: height 0.4s cubic-bezier(0.4,0,0.2,1);
+      overflow: hidden;
+      z-index: 100;
+      display: none;
+    }
+    #transcript-panel.panel-open { height: 320px; }
+    #transcript-panel.visible { display: block; }
+
+    #transcript-toggle {
+      width: 100%;
+      height: 46px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 0 24px;
+      background: none;
+      border: none;
+      cursor: pointer;
+      color: var(--text-muted);
+      font-family: 'Inter', sans-serif;
+      font-size: 0.76rem;
+      font-weight: 600;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+    }
+    #transcript-toggle:hover { color: var(--text-primary); }
+    #transcript-chevron {
+      transition: transform 0.3s ease;
+    }
+    #transcript-panel.panel-open #transcript-chevron {
+      transform: rotate(180deg);
+    }
+    #transcript-count {
+      background: var(--accent-primary);
+      color: #fff;
+      font-size: 0.65rem;
+      font-weight: 700;
+      padding: 2px 8px;
+      border-radius: var(--radius-pill);
+      min-width: 22px;
+      text-align: center;
+    }
+
+    #transcript-messages {
+      height: calc(100% - 46px);
+      overflow-y: auto;
+      padding: 12px 20px 20px;
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+      scrollbar-width: thin;
+      scrollbar-color: rgba(75,139,255,0.3) transparent;
+    }
+    #transcript-messages::-webkit-scrollbar { width: 4px; }
+    #transcript-messages::-webkit-scrollbar-thumb { background: rgba(75,139,255,0.3); border-radius: 2px; }
+
+    .msg {
+      display: flex;
+      gap: 10px;
+      animation: msg-in 0.35s cubic-bezier(0.4,0,0.2,1);
+      max-width: 92%;
+    }
+    .msg.agent { align-self: flex-start; }
+    .msg.user  { align-self: flex-end; flex-direction: row-reverse; }
+    @keyframes msg-in {
+      from { opacity: 0; transform: translateY(12px); }
+      to   { opacity: 1; transform: translateY(0); }
+    }
+    .msg-avatar {
+      width: 28px; height: 28px;
+      border-radius: 50%;
+      flex-shrink: 0;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 0.65rem;
+      font-weight: 700;
+    }
+    .msg.agent .msg-avatar {
+      background: linear-gradient(135deg, var(--accent-primary), var(--accent-glow));
+      color: #fff;
+    }
+    .msg.user .msg-avatar {
+      background: rgba(255,255,255,0.1);
+      color: var(--text-muted);
+      border: 1px solid rgba(255,255,255,0.15);
+    }
+    .msg-body { display: flex; flex-direction: column; gap: 3px; }
+    .msg-name {
+      font-size: 0.66rem;
+      font-weight: 600;
+      letter-spacing: 0.06em;
+      text-transform: uppercase;
+    }
+    .msg.agent .msg-name { color: var(--accent-glow); }
+    .msg.user  .msg-name { color: var(--text-muted); text-align: right; }
+    .msg-bubble {
+      padding: 9px 14px;
+      border-radius: 16px;
+      font-size: 0.875rem;
+      line-height: 1.5;
+      font-weight: 400;
+    }
+    .msg.agent .msg-bubble {
+      background: rgba(75,139,255,0.1);
+      border: 1px solid rgba(75,139,255,0.2);
+      color: var(--text-primary);
+      border-top-left-radius: 4px;
+    }
+    .msg.user .msg-bubble {
+      background: rgba(255,255,255,0.07);
+      border: 1px solid rgba(255,255,255,0.12);
+      color: var(--text-caption);
+      border-top-right-radius: 4px;
+    }
+
+    /* ─────────────────────────────────────────────
+       DISCONNECTED OVERLAY
+    ───────────────────────────────────────────── */
+    #disconnected-overlay {
+      display: none;
+      position: fixed;
+      inset: 0;
+      z-index: 200;
+      align-items: center;
+      justify-content: center;
+      background: rgba(4,8,16,0.85);
+      backdrop-filter: blur(12px);
+    }
+    #disconnected-overlay.active { display: flex; animation: fade-in 0.5s ease; }
+    .disconnect-card {
+      background: var(--bg-card);
+      border: var(--border-glass);
+      border-radius: var(--radius-lg);
+      padding: 48px 56px;
+      text-align: center;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 20px;
+      box-shadow: 0 20px 80px rgba(0,0,0,0.5);
+    }
+    .disconnect-card h2 {
+      font-family: 'Playfair Display', serif;
+      font-size: 1.8rem;
+      color: var(--hotel-gold);
+    }
+    .disconnect-card p {
+      color: var(--text-muted);
+      font-size: 0.95rem;
+      max-width: 300px;
+      line-height: 1.6;
+    }
+    #btn-reconnect {
+      padding: 12px 32px;
+      border-radius: var(--radius-pill);
+      background: linear-gradient(135deg, var(--accent-primary), var(--accent-violet));
+      border: none;
+      color: #fff;
+      font-family: 'Inter', sans-serif;
+      font-size: 0.9rem;
+      font-weight: 600;
+      cursor: pointer;
+      transition: transform 0.2s, box-shadow 0.2s;
+      box-shadow: 0 4px 24px rgba(75,139,255,0.35);
+    }
+    #btn-reconnect:hover { transform: translateY(-2px); box-shadow: 0 8px 32px rgba(75,139,255,0.45); }
+
+    /* ─────────────────────────────────────────────
+       UTILITIES
+    ───────────────────────────────────────────── */
+    @keyframes fade-in {
+      from { opacity: 0; transform: translateY(10px); }
+      to   { opacity: 1; transform: translateY(0); }
+    }
+
+    /* Remote audio element — invisible */
+    #remote-audio { display: none; }
+  </style>
+</head>
+<body>
+
+<div id="app">
+
+  <!-- ── HEADER ─────────────────────────────────── -->
+  <header>
+    <div class="header-brand">
+      <img id="header-logo" src="/assets/images/logo.png" alt="NexCell Hotels" class="header-logo" onerror="this.style.display='none'">
+      <div>
+        <div class="header-name">NexCell Hotels</div>
+        <div class="header-tagline">AI Concierge Experience</div>
+      </div>
+    </div>
+    <div id="connection-badge">
+      <span class="dot"></span>
+      <span id="badge-text">Offline</span>
+    </div>
+  </header>
+
+  <!-- ── MAIN STAGE ──────────────────────────────── -->
+  <div id="stage">
+
+    <!-- WELCOME SCREEN -->
+    <div id="welcome-screen">
+      <div id="welcome-orb-preview"></div>
+      <div>
+        <h1>Meet Olivia</h1>
+        <p style="margin-top:10px">Your personal AI concierge at NexCell Hotels. Book rooms, check availability, and get instant confirmations — just by speaking.</p>
+      </div>
+      <button id="btn-connect">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2a3 3 0 0 1 3 3v7a3 3 0 0 1-6 0V5a3 3 0 0 1 3-3z"/><path d="M19 10v2a7 7 0 0 1-14 0v-2"/><line x1="12" y1="19" x2="12" y2="23"/><line x1="8" y1="23" x2="16" y2="23"/></svg>
+        Connect to Olivia
+      </button>
+    </div>
+
+    <!-- LIVE SESSION SCREEN -->
+    <div id="live-screen">
+
+      <!-- ORB -->
+      <div id="orb-container">
+        <div class="ripple-ring"></div>
+        <div class="ripple-ring"></div>
+        <div class="ripple-ring"></div>
+        <div id="orb" class="idle"></div>
+      </div>
+
+      <!-- STATE LABEL -->
+      <div id="agent-state-label">Connecting…</div>
+
+      <!-- WAVEFORM (agent speaking) -->
+      <div id="waveform">
+        <div class="bar"></div><div class="bar"></div><div class="bar"></div>
+        <div class="bar"></div><div class="bar"></div><div class="bar"></div>
+        <div class="bar"></div><div class="bar"></div>
+      </div>
+
+      <!-- CAPTIONS -->
+      <div id="caption-area">
+        <div id="caption-speaker"></div>
+        <div id="caption-text"></div>
+      </div>
+
+      <!-- CONTROLS -->
+      <div id="controls">
+        <button id="btn-end" class="ctrl-btn" title="End session">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M18 6L6 18M6 6l12 12"/></svg>
+        </button>
+        <button id="btn-mic" class="ctrl-btn" title="Toggle mic">
+          <svg id="icon-mic-on" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2a3 3 0 0 1 3 3v7a3 3 0 0 1-6 0V5a3 3 0 0 1 3-3z"/><path d="M19 10v2a7 7 0 0 1-14 0v-2"/><line x1="12" y1="19" x2="12" y2="23"/><line x1="8" y1="23" x2="16" y2="23"/></svg>
+          <svg id="icon-mic-off" style="display:none" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="1" y1="1" x2="23" y2="23"/><path d="M9 9v3a3 3 0 0 0 5.12 2.12M15 9.34V4a3 3 0 0 0-5.94-.6"/><path d="M17 16.95A7 7 0 0 1 5 12v-2m14 0v2c0 .88-.13 1.73-.38 2.53"/><line x1="12" y1="19" x2="12" y2="23"/><line x1="8" y1="23" x2="16" y2="23"/></svg>
+        </button>
+      </div>
+
+    </div><!-- /live-screen -->
+
+  </div><!-- /stage -->
+
+</div><!-- /app -->
+
+<!-- ── TRANSCRIPT PANEL ──────────────────────────── -->
+<div id="transcript-panel">
+  <button id="transcript-toggle">
+    <span>
+      Conversation
+      <span id="transcript-count" style="margin-left:8px">0</span>
+    </span>
+    <svg id="transcript-chevron" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="18 15 12 9 6 15"/></svg>
+  </button>
+  <div id="transcript-messages"></div>
+</div>
+
+<!-- ── DISCONNECTED OVERLAY ──────────────────────── -->
+<div id="disconnected-overlay">
+  <div class="disconnect-card">
+    <div style="font-size:3rem">🏨</div>
+    <h2>Thank You!</h2>
+    <p>Your session with Olivia has ended. We hope to welcome you to NexCell Hotels soon.</p>
+    <button id="btn-reconnect">Start New Session</button>
+  </div>
+</div>
+
+<!-- Hidden audio output -->
+<audio id="remote-audio" autoplay></audio>
+
+<!-- ── LIVEKIT BROWSER SDK (CDN) ─────────────────── -->
+<script src="https://cdn.jsdelivr.net/npm/livekit-client/dist/livekit-client.umd.min.js"></script>
+
+<script>
+"use strict";
+
+// ─────────────────────────────────────────────────────
+// CONSTANTS
+// ─────────────────────────────────────────────────────
+const LIVEKIT_URL   = "wss://hotel-ai-assistant-2gg6ka24.livekit.cloud";
+const TOKEN_API     = "/api/token";       // served by mcp_server.py
+const DISPATCH_API  = "/api/dispatch";    // triggers agent to join room
+const ROOM_NAME     = "nexcell-lobby";
+
+// ─────────────────────────────────────────────────────
+// STATE
+// ─────────────────────────────────────────────────────
+let room          = null;
+let localTrack    = null;
+let micMuted      = false;
+let agentState    = "idle";   // idle | listening | thinking | speaking
+let msgCount      = 0;
+let analyserNode  = null;
+let animFrameId   = null;
+
+// ─────────────────────────────────────────────────────
+// DOM REFS
+// ─────────────────────────────────────────────────────
+const $welcome    = document.getElementById("welcome-screen");
+const $live       = document.getElementById("live-screen");
+const $orb        = document.getElementById("orb");
+const $orbCont    = document.getElementById("orb-container");
+const $stateLabel = document.getElementById("agent-state-label");
+const $captSpk    = document.getElementById("caption-speaker");
+const $captTxt    = document.getElementById("caption-text");
+const $waveform   = document.getElementById("waveform");
+const $badge      = document.getElementById("connection-badge");
+const $badgeTxt   = document.getElementById("badge-text");
+const $panel      = document.getElementById("transcript-panel");
+const $panelMsgs  = document.getElementById("transcript-messages");
+const $count      = document.getElementById("transcript-count");
+const $overlay    = document.getElementById("disconnected-overlay");
+const $remoteAudio = document.getElementById("remote-audio");
+
+// ─────────────────────────────────────────────────────
+// UTILITIES
+// ─────────────────────────────────────────────────────
+function setOrbState(state) {
+  agentState = state;
+  $orb.className = state;
+  $orbCont.className = state;
+
+  const labels = {
+    idle:      "Ready",
+    listening: "Listening…",
+    thinking:  "Thinking…",
+    speaking:  "Olivia is speaking",
+    error:     "Connection error"
+  };
+  $stateLabel.textContent = labels[state] || state;
+
+  // waveform visible only when speaking
+  $waveform.classList.toggle("active", state === "speaking");
+
+  // caption speaker label
+  $captSpk.textContent = state === "listening" ? "You" : "Olivia";
+  $captSpk.classList.toggle("visible", state !== "idle");
+}
+
+function setCaption(text) {
+  $captTxt.style.opacity = "0";
+  setTimeout(() => {
+    $captTxt.textContent = text;
+    $captTxt.style.opacity = "1";
+  }, 150);
+}
+
+function addMessage(role, text) {
+  if (!text.trim()) return;
+  msgCount++;
+  $count.textContent = msgCount;
+
+  const isAgent = role === "agent";
+  const div = document.createElement("div");
+  div.className = `msg ${isAgent ? "agent" : "user"}`;
+  div.innerHTML = `
+    <div class="msg-avatar">${isAgent ? "AI" : "Me"}</div>
+    <div class="msg-body">
+      <div class="msg-name">${isAgent ? "Olivia" : "You"}</div>
+      <div class="msg-bubble">${text}</div>
+    </div>
+  `;
+  $panelMsgs.appendChild(div);
+  $panelMsgs.scrollTop = $panelMsgs.scrollHeight;
+}
+
+function setBadge(state) {
+  const states = {
+    offline:     { text: "Offline",     live: false },
+    connecting:  { text: "Connecting…", live: false },
+    live:        { text: "Live",        live: true  },
+    ended:       { text: "Ended",       live: false },
+  };
+  const s = states[state] || states.offline;
+  $badgeTxt.textContent = s.text;
+  $badge.classList.toggle("live", s.live);
+}
+
+// ─────────────────────────────────────────────────────
+// AUDIO ANALYSER → ORB REACTIVITY
+// ─────────────────────────────────────────────────────
+function startOrbAnalyser(stream) {
+  try {
+    const ctx = new (window.AudioContext || window.webkitAudioContext)();
+    const source = ctx.createMediaStreamSource(stream);
+    analyserNode = ctx.createAnalyser();
+    analyserNode.fftSize = 64;
+    source.connect(analyserNode);
+    const data = new Uint8Array(analyserNode.frequencyBinCount);
+
+    function tick() {
+      if (!analyserNode) return;
+      analyserNode.getByteFrequencyData(data);
+      const avg = data.reduce((a,b) => a+b, 0) / data.length / 255;
+      if (agentState === "speaking") {
+        const scale = 1 + avg * 0.28;
+        const glow  = Math.round(avg * 80);
+        $orb.style.transform = `scale(${scale.toFixed(3)})`;
+        $orb.style.boxShadow = `0 0 ${40+glow}px rgba(0,200,255,${0.3+avg*0.4}), 0 0 ${80+glow*2}px rgba(75,139,255,${0.15+avg*0.25}), inset 0 0 30px rgba(0,0,0,0.4)`;
+      } else if (agentState === "listening") {
+        const scale = 1.12 + avg * 0.1;
+        $orb.style.transform = `scale(${scale.toFixed(3)})`;
+      } else {
+        $orb.style.transform = "";
+        $orb.style.boxShadow = "";
+      }
+      animFrameId = requestAnimationFrame(tick);
+    }
+    tick();
+  } catch(e) {
+    console.warn("AudioContext not available:", e);
+  }
+}
+
+function stopOrbAnalyser() {
+  if (animFrameId) cancelAnimationFrame(animFrameId);
+  analyserNode = null;
+  $orb.style.transform = "";
+  $orb.style.boxShadow = "";
+}
+
+// ─────────────────────────────────────────────────────
+// CONNECT TO LIVEKIT
+// ─────────────────────────────────────────────────────
+async function connect() {
+  setBadge("connecting");
+  $welcome.style.display = "none";
+  $live.classList.add("active");
+  $panel.classList.add("visible");
+  setOrbState("idle");
+  setCaption("Connecting to Olivia…");
+
+  try {
+    // 1. Get token from our backend
+    const res  = await fetch(`${TOKEN_API}?name=Guest&room=${ROOM_NAME}`);
+    const data = await res.json();
+    if (data.error) throw new Error(data.error);
+
+    const token    = data.token;
+    const lvkUrl   = data.url || LIVEKIT_URL;
+
+    // 2. Create LiveKit room
+    room = new LivekitClient.Room({
+      adaptiveStream: true,
+      dynacast:       true,
+    });
+
+    attachRoomEvents(room);
+
+    // 3. Connect
+    await room.connect(lvkUrl, token);
+    setBadge("live");
+
+    // 4. Publish local mic
+    await room.localParticipant.setMicrophoneEnabled(true);
+    const micPub = room.localParticipant.getTrackPublication(LivekitClient.Track.Source.Microphone);
+    if (micPub && micPub.track) {
+      localTrack = micPub.track;
+    }
+
+    // 5. Ask backend to dispatch the agent
+    try {
+      await fetch(DISPATCH_API, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ room: ROOM_NAME })
+      });
+    } catch(e) {
+      console.warn("Dispatch call failed (agent may already be running):", e.message);
+    }
+
+    setOrbState("idle");
+    setCaption("Waiting for Olivia…");
+
+  } catch(err) {
+    console.error("Connection failed:", err);
+    setOrbState("error");
+    setCaption("Could not connect. Please try again.");
+    setBadge("offline");
+    setTimeout(() => {
+      $live.classList.remove("active");
+      $welcome.style.display = "flex";
+    }, 2500);
+  }
+}
+
+// ─────────────────────────────────────────────────────
+// ROOM EVENTS
+// ─────────────────────────────────────────────────────
+function attachRoomEvents(r) {
+  // Remote participant (agent) tracks
+  r.on(LivekitClient.RoomEvent.TrackSubscribed, (track, pub, participant) => {
+    if (track.kind === LivekitClient.Track.Kind.Audio) {
+      // Attach to audio element
+      track.attach($remoteAudio);
+      // Drive orb from agent's audio
+      const ms = new MediaStream([track.mediaStreamTrack]);
+      startOrbAnalyser(ms);
+    }
+  });
+
+  r.on(LivekitClient.RoomEvent.TrackUnsubscribed, (track) => {
+    if (track.kind === LivekitClient.Track.Kind.Audio) {
+      track.detach();
+      stopOrbAnalyser();
+    }
+  });
+
+  // Agent state changes via data messages / attributes
+  r.on(LivekitClient.RoomEvent.DataReceived, (data, participant) => {
+    try {
+      const msg = JSON.parse(new TextDecoder().decode(data));
+      handleAgentMessage(msg);
+    } catch(e) {}
+  });
+
+  // Participant attributes (LiveKit 1.x agent state)
+  r.on(LivekitClient.RoomEvent.ParticipantAttributesChanged, (changed, participant) => {
+    const state = participant.attributes?.["lk.agent.state"];
+    if (state) handleAgentStateChange(state);
+
+    const transcript = participant.attributes?.["lk.agent.transcription"];
+    if (transcript) {
+      setCaption(transcript);
+      if (state === "speaking" || agentState === "speaking") {
+        addMessage("agent", transcript);
+      }
+    }
+  });
+
+  // STT transcription events (user speech)
+  r.on(LivekitClient.RoomEvent.TranscriptionReceived, (segments, participant) => {
+    for (const seg of segments) {
+      if (seg.final) {
+        const isLocal = participant === r.localParticipant || !participant;
+        if (isLocal) {
+          setCaption(seg.text);
+          addMessage("user", seg.text);
+          setOrbState("thinking");
+        } else {
+          setCaption(seg.text);
+          addMessage("agent", seg.text);
+        }
+      } else if (!participant || participant === r.localParticipant) {
+        setCaption(seg.text);
+        setOrbState("listening");
+      }
+    }
+  });
+
+  // Active speaker detection
+  r.on(LivekitClient.RoomEvent.ActiveSpeakersChanged, (speakers) => {
+    const localSpeaking = speakers.some(s => s === r.localParticipant);
+    const agentSpeaking = speakers.some(s => s !== r.localParticipant);
+    if (agentSpeaking) {
+      setOrbState("speaking");
+    } else if (localSpeaking) {
+      setOrbState("listening");
+    } else if (agentState !== "thinking") {
+      setOrbState("idle");
+    }
+  });
+
+  r.on(LivekitClient.RoomEvent.Disconnected, () => {
+    stopOrbAnalyser();
+    setBadge("ended");
+    $overlay.classList.add("active");
+    $panel.classList.remove("visible");
+  });
+}
+
+function handleAgentStateChange(state) {
+  const map = {
+    "initializing": "idle",
+    "listening":    "listening",
+    "thinking":     "thinking",
+    "speaking":     "speaking",
+  };
+  setOrbState(map[state] || "idle");
+}
+
+function handleAgentMessage(msg) {
+  if (msg.type === "transcription") {
+    setCaption(msg.text || "");
+    addMessage(msg.role || "agent", msg.text || "");
+  } else if (msg.type === "state") {
+    handleAgentStateChange(msg.state);
+  }
+}
+
+// ─────────────────────────────────────────────────────
+// DISCONNECT
+// ─────────────────────────────────────────────────────
+async function disconnect() {
+  if (room) {
+    await room.disconnect();
+    room = null;
+  }
+  stopOrbAnalyser();
+  setBadge("ended");
+  $overlay.classList.add("active");
+  $panel.classList.remove("visible");
+}
+
+// ─────────────────────────────────────────────────────
+// MIC TOGGLE
+// ─────────────────────────────────────────────────────
+async function toggleMic() {
+  if (!room) return;
+  micMuted = !micMuted;
+  await room.localParticipant.setMicrophoneEnabled(!micMuted);
+  document.getElementById("btn-mic").classList.toggle("muted", micMuted);
+  document.getElementById("icon-mic-on").style.display = micMuted ? "none" : "";
+  document.getElementById("icon-mic-off").style.display = micMuted ? "" : "none";
+}
+
+// ─────────────────────────────────────────────────────
+// TRANSCRIPT PANEL TOGGLE
+// ─────────────────────────────────────────────────────
+document.getElementById("transcript-toggle").addEventListener("click", () => {
+  $panel.classList.toggle("panel-open");
+});
+
+// ─────────────────────────────────────────────────────
+// BUTTON HANDLERS
+// ─────────────────────────────────────────────────────
+document.getElementById("btn-connect").addEventListener("click", connect);
+document.getElementById("btn-end").addEventListener("click", disconnect);
+document.getElementById("btn-mic").addEventListener("click", toggleMic);
+document.getElementById("btn-reconnect").addEventListener("click", () => {
+  $overlay.classList.remove("active");
+  $live.classList.remove("active");
+  $panel.classList.remove("visible");
+  $welcome.style.display = "flex";
+  $panelMsgs.innerHTML = "";
+  msgCount = 0;
+  $count.textContent = 0;
+  setBadge("offline");
+  setCaption("");
+  setOrbState("idle");
+});
+</script>
+
+</body>
+</html>

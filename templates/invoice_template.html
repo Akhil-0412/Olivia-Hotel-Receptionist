@@ -1,0 +1,129 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="utf-8">
+    <style>
+        body { font-family: Arial, sans-serif; color: #333; margin: 0; padding: 20px; background-color: #f9f9f9; }
+        .container { max-width: 600px; margin: 0 auto; background-color: #ffffff; padding: 0; border: 1px solid #e0e0e0; }
+        .header { padding: 30px; text-align: left; }
+        .logo { width: 90px; height: 90px; object-fit: cover; border-radius: 50%; box-shadow: 0 4px 12px rgba(0,0,0,0.1); border: 2px solid #f39c12; display: block; }
+        .greeting { padding: 0 30px; margin-top: 10px; font-size: 16px; color: #555; }
+        .title { padding: 0 30px; font-size: 28px; font-weight: bold; color: #000; margin-bottom: 5px; }
+        .confirmation { padding: 0 30px; font-size: 16px; margin-bottom: 20px; border-bottom: 2px solid #e0e0e0; padding-bottom: 20px; }
+        .conf-number { color: #f39c12; font-weight: bold; }
+        .hero-image { width: 100%; height: auto; display: block; border-radius: 24px; margin: 10px 0 20px; -webkit-mask-image: linear-gradient(to bottom, black 70%, transparent 100%); mask-image: linear-gradient(to bottom, black 70%, transparent 100%); }
+        .section { padding: 20px 30px; border-bottom: 1px solid #e0e0e0; }
+        .row { display: flex; margin-bottom: 15px; }
+        .row .left { width: 40%; font-size: 14px; color: #777; }
+        .row .right { width: 60%; font-size: 14px; color: #333; font-weight: bold; }
+        .amenities-list { list-style-type: none; padding: 0; margin: 0; display: flex; flex-wrap: wrap; gap: 15px; }
+        .amenities-list li { display: flex; align-items: center; font-size: 13px; color: #555; }
+        .amenities-list img { width: 24px; height: 24px; margin-right: 8px; }
+        .footer { padding: 30px; background-color: #f9f9f9; text-align: center; font-size: 12px; color: #777; }
+        .footer img { max-width: 100px; margin-bottom: 15px; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <img src="{{ img_prefix }}logo.png" alt="NexCell Hotels Logo" class="logo">
+        </div>
+        
+        <div class="greeting">Hey, {{ guest_name }}</div>
+        <div class="title">Your reservation is confirmed!</div>
+        <div class="confirmation">Confirmation Number: <span class="conf-number">{{ booking_id }}</span></div>
+        
+        <img src="{{ img_prefix }}{{ room_img }}" alt="Room Image" class="hero-image">
+        
+        <div class="section">
+            <div class="row">
+                <div class="left">
+                    {{ check_in_day }},<br>
+                    {{ check_in_date }}<br>
+                    <strong>Check-In</strong>
+                </div>
+                <div class="right" style="font-weight: normal;">
+                    {{ check_out_day }},<br>
+                    {{ check_out_date }}<br>
+                    <strong>Check-Out</strong>
+                </div>
+            </div>
+        </div>
+
+        <div class="section">
+            <div class="row">
+                <div class="left">Name</div>
+                <div class="right">{{ guest_name }}</div>
+            </div>
+            <div class="row">
+                <div class="left">Room Type</div>
+                <div class="right">1 {{ room_label }}</div>
+            </div>
+            <div class="row">
+                <div class="left">Number of Guests</div>
+                <div class="right">{{ guest_str }}</div>
+            </div>
+        </div>
+
+        <div class="section">
+            <div class="row">
+                <div class="left">Standard Amenities</div>
+                <div class="right">
+                    <ul class="amenities-list">
+                        <li><img src="{{ img_prefix }}wifi.png" alt="Wi-Fi"> Wi-Fi</li>
+                        <li><img src="{{ img_prefix }}gym.png" alt="Gym"> 24/7 Gym</li>
+                        <li><img src="{{ img_prefix }}pool.png" alt="Pool"> Heated Pool</li>
+                        <li><img src="{{ img_prefix }}parking.png" alt="Parking"> Free Parking</li>
+                    </ul>
+                </div>
+            </div>
+            <div class="row">
+                <div class="left">Room Amenities</div>
+                <div class="right">
+                    <ul class="amenities-list">
+                        {% for amenity in room_amenities %}
+                        <li>{{ amenity|safe }}</li>
+                        {% endfor %}
+                    </ul>
+                </div>
+            </div>
+        </div>
+
+        <div class="section">
+            <div class="row">
+                <div class="left">Amount Breakdown</div>
+                <div class="right">
+                    £{{ price_per_night }} x {{ nights }} nights<br>
+                    <hr style="margin: 5px 0; border: 0; border-top: 1px solid #e0e0e0;">
+                    <strong>Total: £{{ total_amount }}</strong>
+                </div>
+            </div>
+        </div>
+
+        <div class="section">
+            <div class="row">
+                <div class="left">Special Requests</div>
+                <div class="right" style="font-weight: normal;">
+                    If you have any special requests or need further assistance, please call 887-658-1234.
+                </div>
+            </div>
+        </div>
+
+        <div class="section">
+            <div class="row">
+                <div class="left">Hotel Address</div>
+                <div class="right" style="font-weight: normal;">
+                    NexCell Hotel {{ branch_name }},<br>
+                    {{ branch_address }}
+                </div>
+            </div>
+        </div>
+
+        <div class="footer">
+            <img src="{{ img_prefix }}logo.png" alt="NexCell Hotels Logo"><br>
+            {{ branch_address_inline }}<br><br>
+            &copy; 2026 NexCell Hotels
+        </div>
+    </div>
+</body>
+</html>

@@ -1,0 +1,8 @@
+.env
+.venv/
+__pycache__/
+logs/
+invoices/
+*.log
+*.sqlite3
+.pytest_cache/
