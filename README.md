@@ -1,3 +1,13 @@
+---
+title: NexCell Voice Agent
+emoji: 🏨
+colorFrom: blue
+colorTo: indigo
+sdk: docker
+app_port: 7860
+pinned: false
+---
+
 # NexCell Voice Agent
 
 An AI voice receptionist for NexCell Hotels. Guests connect over WebRTC, speak naturally, and the agent handles real bookings, availability checks, FAQ lookups, and invoice delivery through a backend tool server, rather than just answering scripted questions.
@@ -18,12 +28,12 @@ An AI voice receptionist for NexCell Hotels. Guests connect over WebRTC, speak n
 
 ## Architecture
 
-Guest audio flows from the browser dashboard into the voice worker, which runs a LangGraph agent backed by Gemini. The agent never touches inventory, bookings, or email directly, it only calls MCP tools and reacts to their results. That keeps the reasoning layer, tool execution layer, and web frontend fully decoupled processes that can be modified independently.
+Guest audio flows from the browser dashboard into the voice worker, which runs a LangGraph agent backed by Gemini. The agent never touches inventory, bookings, or email directly; it only calls MCP tools and reacts to their results. That keeps the reasoning layer, tool execution layer, and web frontend as fully decoupled processes that can be modified independently.
 
 **Flow:**
 
 1. Browser dashboard (LiveKit Components UI) opens a WebRTC session.
-2. `frontend_server.py` connects the browser to the running voice worker.
+2. `frontend_server.py` connects the browser to the room and dynamically spawns a `voice_server.py` worker process.
 3. `voice_server.py` runs the LangGraph agent (Gemini), which interprets the conversation and decides which tool to call.
 4. Tool calls go out over SSE to `mcp_server.py` (FastMCP), which exposes:
    - `check_availability`
@@ -32,16 +42,16 @@ Guest audio flows from the browser dashboard into the voice worker, which runs a
    - `send_invoice`
 5. `send_invoice` renders a Jinja2 HTML template and sends it to the guest over SMTP.
 
-The agent's persona, step-by-step booking flow, and guardrails (no hallucinated prices, no invented booking references, no skipped steps) are defined in `agent_instructions.md` and injected as the system prompt on every turn.
+The agent's persona, step-by-step booking flow, and guardrails (no hallucinated prices, no invented booking references, no skipped steps) are defined in `agent_instructions_compact.md` and injected as the system prompt on every turn.
 
 ## Implemented MCP Tools
 
-Defined in `src/mcp_server.py`, backed by in-memory inventory and booking stores:
+Defined in `src/mcp_server.py`, backed by in-memory inventory and booking stores. This project implements four distinct tools from the suggested categories:
 
-1. **`check_availability`** — looks up per-night pricing and remaining units for a branch, arrival date, and optional room type filter.
-2. **`create_booking`** — validates availability, deducts inventory, generates a booking reference, and persists the reservation.
-3. **`search_faq`** — keyword/tag-matches a guest query against a static FAQ knowledge base and returns ranked results.
-4. **`send_invoice`** — renders a branded HTML invoice from a Jinja2 template with embedded room images, and emails it to the guest over SMTP.
+1. **Availability Checker** (`check_availability`) — looks up per-night pricing and remaining units for a branch, arrival date, and optional room type filter.
+2. **Booking System** (`create_booking`) — validates availability, deducts inventory, generates a booking reference, and persists the reservation.
+3. **FAQ Search** (`search_faq`) — keyword/tag-matches a guest query against a static FAQ knowledge base and returns ranked results.
+4. **Email Sender** (`send_invoice`) — renders a branded HTML invoice from a Jinja2 template with embedded room images, and emails it to the guest over SMTP.
 
 ## Setup Instructions
 
@@ -79,6 +89,8 @@ uv sync
 
 ### 3. Run the services
 
+You only need two terminals, because the web UI automatically handles spawning the voice agent securely in the background when a guest connects.
+
 **Terminal 1 — MCP tool server**
 
 ```bash
@@ -87,23 +99,13 @@ uv run python src/mcp_server.py
 
 Starts FastMCP on `http://127.0.0.1:8000` (SSE transport).
 
-**Terminal 2 — Voice agent worker**
+**Terminal 2 — Web dashboard & Orchestrator**
 
 ```bash
-uv run python src/voice_server.py dev
+uv run python src/frontend_server.py
 ```
 
-Registers the `nexcell-receptionist` worker against your LiveKit project.
-
-**Terminal 3 — Web dashboard**
-
-```bash
-uv run python frontend/frontend_server.py
-```
-
-Serves the connection dashboard at `http://127.0.0.1:8001`.
-
-> Confirm before publishing: whether `frontend_server.py` spawns `voice_server.py` itself or expects it already running. If it spawns it, Terminal 2 is not run manually and this section should say so instead.
+Serves the connection dashboard at `http://127.0.0.1:8001` and listens for connection requests to dynamically spawn voice workers.
 
 ### 4. Connect and talk
 

@@ -116,10 +116,23 @@ async def entrypoint(ctx: JobContext) -> None:
         handle_tool_errors=True,
     )
 
-    langgraph_agent = await build_agent(
-        mcp_client,
-        system_prompt=SystemMessage(content=agent_instructions)
-    )
+    # Retry loop to wait for mcp_server to boot up (especially in Docker/supervisor environments)
+    langgraph_agent = None
+    max_retries = 15
+    for attempt in range(1, max_retries + 1):
+        try:
+            print(f"[Voice Worker] Attempting to connect to MCP Server (attempt {attempt}/{max_retries})...")
+            langgraph_agent = await build_agent(
+                mcp_client,
+                system_prompt=SystemMessage(content=agent_instructions)
+            )
+            break
+        except Exception as e:
+            if attempt == max_retries:
+                print(f"[Voice Worker] Fatal error: Could not connect to MCP server after {max_retries} attempts.")
+                raise e
+            print(f"[Voice Worker] MCP Server not ready yet ({type(e).__name__}). Retrying in 2 seconds...")
+            await asyncio.sleep(2)
 
     # Verification: Wrap the ainvoke method to log the first turn's messages
     original_ainvoke = langgraph_agent.ainvoke

@@ -42,16 +42,9 @@ async def dispatch_agent(request: Request):
     Here we just spawn the process if it's not already running.
     """
     try:
-        # Launch voice_server.py dev mode in the background
-        # It connects to the LiveKit room and acts as the agent
-        log_file = open(PROJECT_ROOT / "logs" / "voice_server.log", "w")
-        subprocess.Popen(
-            ["uv", "run", "python", str(PROJECT_ROOT / "src" / "voice_server.py"), "connect", "--room", "nexcell-lobby"],
-            stdout=log_file,
-            stderr=subprocess.STDOUT,
-            creationflags=subprocess.CREATE_NEW_PROCESS_GROUP if os.name == 'nt' else 0
-        )
-        return JSONResponse({"success": True})
+        # In a managed Docker environment, voice_server.py is running via supervisor.
+        # We don't spawn a new process here to avoid duplicate agents.
+        return JSONResponse({"success": True, "message": "Voice server is managed by supervisor."})
     except Exception as e:
         return JSONResponse({"success": False, "error": str(e)}, status_code=500)
 
@@ -69,8 +62,9 @@ app = Starlette(debug=True, routes=[
 ])
 
 if __name__ == "__main__":
+    port = int(os.environ.get("PORT", 7860))
     print("\n" + "="*50)
-    print("NexCell UI Server running!")
-    print("-> Open http://127.0.0.1:8001 in your browser")
+    print(f"NexCell UI Server running on port {port}!")
+    print(f"-> Open http://127.0.0.1:{port} in your browser")
     print("="*50 + "\n")
-    uvicorn.run(app, host="127.0.0.1", port=8001)
+    uvicorn.run(app, host="0.0.0.0", port=port)
