@@ -4,7 +4,7 @@ An enterprise-grade, AI-powered voice receptionist designed to handle natural cu
 
 Unlike traditional interactive voice response (IVR) systems, this agent utilizes an **agentic architecture** coupled with the **Model Context Protocol (MCP)** to interact dynamically with backend business systems.
 
-## ✨ Features
+##  Features
 
 - **Ultra-Low Latency Voice Interaction:** Built on WebRTC for real-time, asynchronous, duplex audio streaming.
 - **Agentic Tool Execution:** Uses LangGraph to orchestrate state, memory, and intelligent tool routing, allowing the agent to break down complex tasks and execute functions on backend systems.
@@ -24,7 +24,7 @@ The agent performs actions through a decoupled FastMCP-compliant server that exp
 4. **`send_invoice`** 
    Notification dispatch. Generates responsive, branded HTML invoices using Jinja2 templates and emails them directly to the guest securely via SMTP.
 
-## 🏗️ Architecture & Tech Stack
+##  Architecture & Tech Stack
 
 - **Voice/Streaming Pipeline:** [LiveKit WebRTC](https://livekit.io/) (Agents SDK) for robust real-time audio transport and Voice Activity Detection (Silero VAD).
 - **LLM Orchestration:** [LangGraph](https://www.langchain.com/langgraph) & LangChain for robust state management and multi-step reasoning.
@@ -35,7 +35,7 @@ The agent performs actions through a decoupled FastMCP-compliant server that exp
 - **Tool Protocol:** [FastMCP](https://github.com/jlowin/fastmcp) with SSE Transport, dynamically mapped into the LangChain ecosystem via `langchain-mcp-adapters`.
 - **Frontend / UI:** Starlette / FastAPI for local state rendering and web UI delivery.
 
-## 🚀 Setup Instructions
+##  Setup Instructions
 
 ### 1. Requirements
 
