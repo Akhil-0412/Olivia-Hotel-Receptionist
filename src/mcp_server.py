@@ -666,8 +666,10 @@ async def send_invoice(
 def _send_email_smtp(to_email: str, subject: str, html_content: str, images: list[str]) -> bool:
     import os
 
-    gmail_user = os.environ.get("GMAIL_ADDRESS")
-    gmail_pwd = os.environ.get("GMAIL_APP_PASSWORD")
+    smtp_server = os.environ.get("SMTP_SERVER", "smtp.gmail.com")
+    smtp_port = int(os.environ.get("SMTP_PORT", 465))
+    gmail_user = os.environ.get("SENDER_EMAIL") or os.environ.get("GMAIL_ADDRESS")
+    gmail_pwd = os.environ.get("SENDER_PASSWORD") or os.environ.get("GMAIL_APP_PASSWORD")
     if not gmail_user or not gmail_pwd:
         print("WARNING: Email credentials missing in .env, skipping SMTP.")
         return False
@@ -698,7 +700,7 @@ def _send_email_smtp(to_email: str, subject: str, html_content: str, images: lis
             else:
                 print(f"Warning: Image {img_path} not found for email attachment.")
 
-        server = smtplib.SMTP_SSL("smtp.gmail.com", 465)
+        server = smtplib.SMTP_SSL(smtp_server, smtp_port)
         server.login(gmail_user, gmail_pwd)
         server.sendmail(gmail_user, to_email, msg.as_string())
         server.quit()
