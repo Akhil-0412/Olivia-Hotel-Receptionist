@@ -3,7 +3,14 @@ import sys
 import time
 import os
 import uvicorn
-from src.frontend_server import app
+from fastapi import FastAPI
+from fastapi.responses import HTMLResponse
+
+app = FastAPI()
+
+@app.get("/")
+def read_root():
+    return HTMLResponse("<h1>Olivia Backend is running.</h1><p>Frontend is hosted on Vercel.</p>")
 
 def main():
     print("[Orchestrator] Starting MCP Server...", flush=True)
@@ -17,9 +24,9 @@ def main():
     # The voice worker has its own retry loop for the MCP server built-in now
     voice_process = subprocess.Popen([sys.executable, "src/voice_server.py", "dev"])
     
-    # The frontend server binds to 0.0.0.0 and PORT (HF Gradio SDK automatically provides this, default 7860)
+    # Hugging Face Gradio SDK requires a server bound to port 7860
     port = int(os.environ.get("PORT", 7860))
-    print(f"[Orchestrator] Starting Frontend Server on port {port}...", flush=True)
+    print(f"[Orchestrator] Starting Healthcheck Server on port {port}...", flush=True)
     uvicorn.run(app, host="0.0.0.0", port=port)
 
 if __name__ == "__main__":
