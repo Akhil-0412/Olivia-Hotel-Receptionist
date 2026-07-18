@@ -15,6 +15,8 @@ import sys
 load_dotenv()
 
 PROJECT_ROOT = Path(__file__).parent.parent
+if str(PROJECT_ROOT) not in sys.path:
+    sys.path.insert(0, str(PROJECT_ROOT))
 
 async def get_token(request: Request):
     """
@@ -38,25 +40,42 @@ async def get_token(request: Request):
 async def dispatch_agent(request: Request):
     """
     Triggers the voice_server.py to join the room.
-    In a real app, this might use the LiveKit Agents API to dispatch a worker.
-    Here we just spawn the process if it's not already running.
     """
     try:
-        # In a managed Docker environment, voice_server.py is running via supervisor.
-        # We don't spawn a new process here to avoid duplicate agents.
-        return JSONResponse({"success": True, "message": "Voice server is managed by supervisor."})
+        req = await request.json()
+        room_name = req.get("room", "nexcell-lobby")
+        
+        # Explicitly dispatch the agent to the room
+        lkapi = livekit_api.LiveKitAPI(
+            os.environ["LIVEKIT_URL"], 
+            os.environ["LIVEKIT_API_KEY"], 
+            os.environ["LIVEKIT_API_SECRET"]
+        )
+        await lkapi.agent_dispatch.create_dispatch(
+            livekit_api.CreateAgentDispatchRequest(
+                room=room_name,
+                agent_name="nexcell-receptionist"
+            )
+        )
+        await lkapi.aclose()
+        return JSONResponse({"success": True, "message": "Agent dispatched successfully."})
     except Exception as e:
         return JSONResponse({"success": False, "error": str(e)}, status_code=500)
+
+from src.payment_portal import payment_routes
+from src.mcp_server import api_invoice, view_invoice
 
 # Create the Starlette App
 app = Starlette(debug=True, routes=[
     # The API endpoints
     Route("/api/token", get_token, methods=["GET"]),
     Route("/api/dispatch", dispatch_agent, methods=["POST"]),
+    Route("/api/invoice", api_invoice, methods=["POST"]),
+    Route("/invoice/{booking_id}", view_invoice, methods=["GET"]),
     
     # Static mount for images (logo.png) in the assets directory
     Mount("/assets", app=StaticFiles(directory=str(PROJECT_ROOT / "assets"), html=False), name="assets"),
-    
+] + payment_routes + [
     # Static mount for the frontend UI
     Mount("/", app=StaticFiles(directory=str(PROJECT_ROOT / "frontend"), html=True), name="frontend"),
 ])

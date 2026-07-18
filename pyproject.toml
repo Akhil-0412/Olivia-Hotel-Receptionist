@@ -32,6 +32,10 @@ dependencies = [
     "jinja2>=3.1.6",
     "langchain-google-genai>=4.2.7",
     "livekit-plugins-google>=1.6.4",
+    "fastapi>=0.115.2",
+    "uvicorn>=0.51.0",
+    "starlette==0.38.6",
+    "resend>=2.1.0",
 ]
 
 # No build-system defined intentionally — this is a scripts-only project.

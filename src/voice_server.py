@@ -24,6 +24,11 @@ import asyncio
 import datetime
 import os
 import sys
+
+# Windows asyncio bug workaround for WebSockets (fixes Cartesia connection drops)
+if sys.platform == 'win32':
+    asyncio.set_event_loop_policy(asyncio.WindowsSelectorEventLoopPolicy())
+
 import io
 import httpx
 from pathlib import Path
@@ -41,7 +46,7 @@ from livekit.agents import (
     WorkerOptions,
     cli,
 )
-from livekit.plugins import elevenlabs, langchain, openai, silero, cartesia
+from livekit.plugins import elevenlabs, langchain, openai, cartesia
 
 # Fix import paths so the IDE and python can resolve it
 import sys
@@ -60,8 +65,7 @@ load_dotenv(override=True)
 # Prewarm: load Silero VAD once per worker process to avoid cold-start delay
 # ---------------------------------------------------------------------------
 
-def prewarm(proc) -> None:
-    proc.userdata["vad"] = silero.VAD.load()
+# Prewarming VAD is no longer necessary as AgentSession uses the bundled silero VAD natively by default.
 
 
 # ---------------------------------------------------------------------------
@@ -81,6 +85,8 @@ async def entrypoint(ctx: JobContext) -> None:
 
     # 3. TTS — Cartesia (free tier, no Inworld account needed)
     tts = cartesia.TTS(
+        voice="c46cf1f6-49a1-4d67-9a57-ff859a4046d3",
+        model="sonic-3.5",
         api_key=os.environ.get("Cartesia_API_KEY"),
     )
 
@@ -135,7 +141,7 @@ async def entrypoint(ctx: JobContext) -> None:
             await asyncio.sleep(2)
 
     # Verification: Wrap the ainvoke method to log the first turn's messages
-    original_ainvoke = langgraph_agent.ainvoke
+    original_ainvoke = getattr(langgraph_agent, "ainvoke", None)  # type: ignore
     _first_turn_logged = False
     
     async def logging_ainvoke(*args, **kwargs):
@@ -151,9 +157,10 @@ async def entrypoint(ctx: JobContext) -> None:
             print("="*80 + "\n")
         return await original_ainvoke(*args, **kwargs)
         
-    langgraph_agent.ainvoke = logging_ainvoke
+    if langgraph_agent is not None:
+        langgraph_agent.ainvoke = logging_ainvoke  # type: ignore
 
-    llm_adapter = langchain.LLMAdapter(graph=langgraph_agent)
+    llm_adapter = langchain.LLMAdapter(graph=langgraph_agent)  # type: ignore
 
     agent = Agent(
         instructions=agent_instructions,
@@ -165,7 +172,6 @@ async def entrypoint(ctx: JobContext) -> None:
         stt=stt,
         llm=llm_adapter,
         tts=tts,
-        vad=ctx.proc.userdata["vad"],
     )
 
     await session.start(agent=agent, room=ctx.room)
@@ -215,10 +221,15 @@ async def send_invoice_direct(booking_id: str, email_address: str) -> bool:
 # ---------------------------------------------------------------------------
 
 if __name__ == "__main__":
+    if not os.environ.get("LIVEKIT_URL"):
+        print("\n[Voice Worker] ⚠️ LIVEKIT_URL is not set. The voice assistant will not start.")
+        print("[Voice Worker] ⚠️ Please configure your LiveKit credentials in the .env file.")
+        print("[Voice Worker] ⚠️ The rest of the NexCell system (MCP and Portal) is running normally.\n", flush=True)
+        sys.exit(0)
+
     cli.run_app(
         WorkerOptions(
             agent_name="nexcell-receptionist",
             entrypoint_fnc=entrypoint,
-            prewarm_fnc=prewarm,
         )
     )

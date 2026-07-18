@@ -1,0 +1,306 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>NexCell Hotels – Secure Checkout</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <style>
+        *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+        body {
+            font-family: 'Inter', sans-serif;
+            background: linear-gradient(135deg, #0f172a 0%, #1e293b 50%, #0f172a 100%);
+            min-height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 24px 16px;
+            color: #e2e8f0;
+        }
+
+        .card {
+            background: #1e293b;
+            border: 1px solid #334155;
+            border-radius: 20px;
+            padding: 40px;
+            width: 100%;
+            max-width: 480px;
+            box-shadow: 0 25px 60px rgba(0,0,0,0.5);
+        }
+
+        /* Header */
+        .header {
+            text-align: center;
+            margin-bottom: 32px;
+        }
+        .logo-wrap {
+            display: inline-flex;
+            align-items: center;
+            gap: 10px;
+            margin-bottom: 8px;
+        }
+        .logo-icon {
+            width: 40px; height: 40px;
+            background: linear-gradient(135deg, #6366f1, #8b5cf6);
+            border-radius: 10px;
+            display: flex; align-items: center; justify-content: center;
+            font-size: 20px;
+        }
+        .brand-name { font-size: 22px; font-weight: 700; color: #f1f5f9; }
+        .subtitle { font-size: 13px; color: #64748b; margin-top: 4px; }
+
+        /* Timer */
+        .timer-box {
+            background: rgba(239,68,68,0.12);
+            border: 1px solid rgba(239,68,68,0.3);
+            border-radius: 10px;
+            padding: 12px 16px;
+            text-align: center;
+            margin-bottom: 24px;
+        }
+        .timer-label { font-size: 11px; text-transform: uppercase; letter-spacing: 0.08em; color: #94a3b8; margin-bottom: 4px; }
+        #timer { font-size: 16px; font-weight: 600; color: #f87171; }
+        #timer.expired { color: #6b7280; }
+
+        /* Booking Summary */
+        .summary {
+            background: #0f172a;
+            border: 1px solid #1e3a5f;
+            border-radius: 12px;
+            padding: 20px;
+            margin-bottom: 24px;
+        }
+        .summary-row {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 6px 0;
+            border-bottom: 1px solid #1e293b;
+            font-size: 14px;
+        }
+        .summary-row:last-child { border-bottom: none; padding-bottom: 0; }
+        .summary-label { color: #64748b; }
+        .summary-value { color: #e2e8f0; font-weight: 500; text-align: right; max-width: 55%; }
+        .total-row {
+            margin-top: 12px;
+            padding-top: 12px;
+            border-top: 1px solid #334155;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        .total-label { font-size: 14px; font-weight: 600; color: #94a3b8; }
+        .total-amount { font-size: 24px; font-weight: 700; color: #a78bfa; }
+
+        /* Form */
+        .form-section { margin-bottom: 24px; }
+        .section-title {
+            font-size: 12px;
+            text-transform: uppercase;
+            letter-spacing: 0.1em;
+            color: #64748b;
+            margin-bottom: 16px;
+        }
+        .form-group { margin-bottom: 16px; }
+        label { display: block; font-size: 12px; font-weight: 500; color: #94a3b8; margin-bottom: 6px; letter-spacing: 0.04em; }
+
+        input[type=text] {
+            width: 100%;
+            background: #0f172a;
+            border: 1px solid #334155;
+            border-radius: 8px;
+            padding: 12px 14px;
+            font-size: 15px;
+            color: #e2e8f0;
+            font-family: 'Inter', sans-serif;
+            transition: border-color 0.2s, box-shadow 0.2s;
+            outline: none;
+        }
+        input[type=text]::placeholder { color: #475569; }
+        input[type=text]:focus {
+            border-color: #6366f1;
+            box-shadow: 0 0 0 3px rgba(99,102,241,0.15);
+        }
+
+        .row-two {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 12px;
+        }
+
+        /* Lock badge */
+        .security-note {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            font-size: 12px;
+            color: #64748b;
+            margin-bottom: 20px;
+        }
+        .security-note span { font-size: 16px; }
+
+        /* Pay Button */
+        .pay-btn {
+            display: block;
+            width: 100%;
+            background: linear-gradient(135deg, #6366f1, #8b5cf6);
+            color: white;
+            border: none;
+            border-radius: 10px;
+            padding: 15px;
+            font-size: 16px;
+            font-weight: 700;
+            cursor: pointer;
+            font-family: 'Inter', sans-serif;
+            transition: opacity 0.2s, transform 0.15s;
+            letter-spacing: 0.02em;
+        }
+        .pay-btn:hover:not(:disabled) { opacity: 0.9; transform: translateY(-1px); }
+        .pay-btn:active:not(:disabled) { transform: translateY(0); }
+        .pay-btn:disabled {
+            background: #334155;
+            color: #64748b;
+            cursor: not-allowed;
+        }
+
+        /* Mock notice */
+        .mock-notice {
+            text-align: center;
+            font-size: 11px;
+            color: #475569;
+            margin-top: 16px;
+        }
+        .mock-notice strong { color: #6366f1; }
+    </style>
+
+    <script>
+        function pad(n) { return String(n).padStart(2, '0'); }
+
+        function initTimer() {
+            const timeAttr = document.body.getAttribute('data-time-left');
+            let timeLeft = parseInt(timeAttr, 10);
+            
+            // If time is missing or <= 0, don't start the visual countdown
+            if (isNaN(timeLeft) || timeLeft <= 0) return;
+
+            function updateTimer() {
+                const el = document.getElementById('timer');
+                if (!el) return;
+                if (timeLeft <= 0) {
+                    el.textContent = 'Reservation expired — this room has been released.';
+                    el.classList.add('expired');
+                    const btn = document.getElementById('pay-btn');
+                    if (btn) btn.disabled = true;
+                    return;
+                }
+                const h = Math.floor(timeLeft / 3600);
+                const m = Math.floor((timeLeft % 3600) / 60);
+                const s = timeLeft % 60;
+                el.textContent = `${pad(h)}h ${pad(m)}m ${pad(s)}s remaining to secure this room`;
+                timeLeft--;
+                setTimeout(updateTimer, 1000);
+            }
+            updateTimer();
+        }
+
+        window.addEventListener('DOMContentLoaded', initTimer);
+    </script>
+</head>
+<body data-time-left="{{ time_left_seconds if time_left_seconds is not none else -1 }}">
+<div class="card">
+
+    <div class="header">
+        <div class="logo-wrap">
+            <div class="logo-icon">🏨</div>
+            <span class="brand-name">NexCell Hotels</span>
+        </div>
+        <p class="subtitle">{% if is_diff %}Modification Payment{% else %}Secure Checkout{% endif %}</p>
+    </div>
+
+    {% if time_left_seconds is not none and time_left_seconds >= 0 and not is_diff %}
+    <div class="timer-box">
+        <div class="timer-label">Room Lock Countdown</div>
+        <div id="timer">Calculating…</div>
+    </div>
+    {% endif %}
+
+    <div class="summary">
+        <div class="summary-row">
+            <span class="summary-label">Reference</span>
+            <span class="summary-value" style="font-family:monospace;color:#a78bfa">{{ booking.reference }}</span>
+        </div>
+        <div class="summary-row">
+            <span class="summary-label">Guest</span>
+            <span class="summary-value">{{ booking.guest_name }}</span>
+        </div>
+        <div class="summary-row">
+            <span class="summary-label">Hotel</span>
+            <span class="summary-value">NexCell {{ booking.branch | title }}</span>
+        </div>
+        <div class="summary-row">
+            <span class="summary-label">Room</span>
+            <span class="summary-value">{{ booking.room_type | replace('_', ' ') | title }}</span>
+        </div>
+        <div class="summary-row">
+            <span class="summary-label">Check-in</span>
+            <span class="summary-value">{{ booking.arrival_date }}</span>
+        </div>
+        <div class="summary-row">
+            <span class="summary-label">Check-out</span>
+            <span class="summary-value">{{ booking.checkout_date }}</span>
+        </div>
+
+        <div class="total-row">
+            <span class="total-label">{% if is_diff %}Upgrade Difference{% else %}Total Due{% endif %}</span>
+            <span class="total-amount">£{% if is_diff %}{{ diff_amount }}{% else %}{{ booking.total_cost }}{% endif %}</span>
+        </div>
+    </div>
+
+    <form method="POST" action="{% if is_diff %}/pay/diff/{{ booking.reference }}{% else %}/pay/{{ booking.reference }}{% endif %}">
+        {% if is_diff %}
+        <input type="hidden" name="diff_amount" value="{{ diff_amount }}">
+        {% endif %}
+
+        <div class="form-section">
+            <p class="section-title">Card Details (Demo — no real charges)</p>
+
+            <div class="form-group">
+                <label>Card Number</label>
+                <input type="text" name="card_number" placeholder="4242 4242 4242 4242"
+                       required minlength="16" maxlength="19"
+                       inputmode="numeric" autocomplete="cc-number">
+            </div>
+
+            <div class="row-two">
+                <div class="form-group">
+                    <label>Expiry Date</label>
+                    <input type="text" placeholder="MM / YY" required maxlength="5" autocomplete="cc-exp">
+                </div>
+                <div class="form-group">
+                    <label>CVC</label>
+                    <input type="text" placeholder="123" required maxlength="4" autocomplete="cc-csc">
+                </div>
+            </div>
+
+            <div class="form-group">
+                <label>Cardholder Name</label>
+                <input type="text" placeholder="{{ booking.guest_name }}" autocomplete="cc-name">
+            </div>
+        </div>
+
+        <div class="security-note">
+            <span>🔒</span>
+            <span>Your payment details are encrypted. This is a demo — no money is taken.</span>
+        </div>
+
+        <button type="submit" class="pay-btn" id="pay-btn">
+            Pay £{% if is_diff %}{{ diff_amount }}{% else %}{{ booking.total_cost }}{% endif %} &nbsp;→
+        </button>
+    </form>
+
+    <p class="mock-notice"><strong>Mock Stripe Gateway</strong> · NexCell Hotels Demo</p>
+</div>
+</body>
+</html>

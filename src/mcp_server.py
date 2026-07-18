@@ -20,12 +20,23 @@ import random
 import uuid
 import datetime
 import json
-import smtplib
-from email.mime.multipart import MIMEMultipart
-from email.mime.text import MIMEText
-from email.mime.image import MIMEImage
+
+import sys
 from pathlib import Path
 from typing import Literal
+
+# ---------------------------------------------------------------------------
+# Strict Startup Validation for Deployment
+# ---------------------------------------------------------------------------
+if os.environ.get("SPACE_ID"):
+    PUBLIC_URL = os.environ.get("PUBLIC_URL")
+    if not PUBLIC_URL:
+        raise ValueError("CRITICAL ERROR: PUBLIC_URL environment variable is required on Hugging Face to avoid sending broken links in emails.")
+    if not PUBLIC_URL.startswith("https://"):
+        raise ValueError("CRITICAL ERROR: PUBLIC_URL must start with https://")
+    PUBLIC_URL = PUBLIC_URL.rstrip("/")
+else:
+    PUBLIC_URL = os.environ.get("PUBLIC_URL", "http://127.0.0.1:7860").rstrip("/")
 
 from dotenv import load_dotenv
 from jinja2 import Environment, FileSystemLoader
@@ -33,7 +44,9 @@ from jinja2 import Environment, FileSystemLoader
 # Load environment variables
 load_dotenv()
 
+import sys
 PROJECT_ROOT = Path(__file__).parent.parent
+sys.path.append(str(PROJECT_ROOT))
 
 from fastmcp import FastMCP
 from pydantic import BaseModel, Field, field_validator
@@ -60,45 +73,11 @@ mcp = FastMCP(
 # In-memory mock data stores
 # ---------------------------------------------------------------------------
 
-# Availability inventory: branch -> room_type -> base capacity & price
-_INVENTORY: dict[str, dict[str, dict]] = {
-    "london": {
-        "standard_twin": {"capacity": 5, "price_gbp": 120},
-        "deluxe_double": {"capacity": 3, "price_gbp": 195},
-        "executive_suite": {"capacity": 1, "price_gbp": 380},
-    },
-    "manchester": {
-        "standard_twin": {"capacity": 8, "price_gbp": 95},
-        "deluxe_double": {"capacity": 4, "price_gbp": 155},
-        "executive_suite": {"capacity": 2, "price_gbp": 290},
-    },
-    "edinburgh": {
-        "standard_twin": {"capacity": 3, "price_gbp": 110},
-        "deluxe_double": {"capacity": 2, "price_gbp": 175},
-        "executive_suite": {"capacity": 1, "price_gbp": 340},
-    },
-}
-
-def _get_date_inventory(branch_key: str, check_date: str) -> dict:
-    """Helper to dynamically calculate availability for a date."""
-    branch_data = _INVENTORY[branch_key]
-    date_inventory = {}
-    for rt, info in branch_data.items():
-        # Count overlapping bookings
-        booked_count = sum(
-            1 for b in _BOOKINGS.values()
-            if b["branch"].lower() == branch_key 
-            and b["room_type"] == rt 
-            and b["arrival"] <= check_date < b["checkout"]
-        )
-        date_inventory[rt] = {
-            "units": max(0, info["capacity"] - booked_count),
-            "price_gbp": info["price_gbp"]
-        }
-    return date_inventory
-
-# Active bookings store: booking_ref -> booking record
-_BOOKINGS: dict[str, dict] = {}
+from src.database import (
+    get_availability, create_booking as db_create_booking, 
+    get_booking, modify_booking_room, modify_booking_name, 
+    cancel_booking as db_cancel_booking, get_payment_history, INVENTORY_CAPACITY
+)
 
 # FAQ knowledge base: list of {question, answer, tags}
 _FAQ_STORE: list[dict[str, str]] = [
@@ -443,18 +422,15 @@ async def check_availability(
     )
     branch_key = payload.branch.strip().lower()
 
-    # Validate branch
-    if branch_key not in _INVENTORY:
-        available_branches = ", ".join(sorted(_INVENTORY.keys()))
+    if branch_key not in INVENTORY_CAPACITY:
+        available_branches = ", ".join(sorted(INVENTORY_CAPACITY.keys()))
         return (
             f"ERROR: Branch '{payload.branch}' not recognised. "
             f"Available branches: {available_branches}."
         )
 
-    # Dynamically generate inventory for the requested date
-    date_inventory = _get_date_inventory(branch_key, payload.arrival_date)
+    date_inventory = get_availability(branch_key, payload.arrival_date)
 
-    # Apply optional room-type filter
     if payload.room_type:
         rt_key = payload.room_type.strip().lower().replace(" ", "_")
         if rt_key not in date_inventory:
@@ -465,17 +441,16 @@ async def check_availability(
             )
         date_inventory = {rt_key: date_inventory[rt_key]}
 
-    # Build response
     lines: list[str] = [
-        f"Availability at NexCell {payload.branch.title()} "
+        f"Availability at NexCell {payload.branch.title()} \n"
         f"from {payload.arrival_date} for {payload.nights} night(s):",
     ]
     any_available = False
-    for room_type, info in date_inventory.items():
+    for rt, info in date_inventory.items():
         units = info["units"]
         price = info["price_gbp"]
         total = price * payload.nights
-        label = room_type.replace("_", " ").title()
+        label = rt.replace("_", " ").title()
         if units > 0:
             any_available = True
             lines.append(
@@ -505,93 +480,102 @@ async def create_booking(
     nights: int = 1,
     guest_email: str | None = None,
 ) -> str:
-    """Create a confirmed hotel reservation. Validates availability, generates a unique NX- booking reference, and persists the record."""
+    """Create a reservation. Validates availability, generates a unique HTL reference, and persists the record as LOCKED."""
     payload = BookingRequest(
         guest_full_name=guest_full_name,
         branch=branch,
-        room_type=room_type,
+        room_type=room_type,  # type: ignore
         arrival_date=arrival_date,
         nights=nights,
         guest_email=guest_email
     )
     branch_key = payload.branch.strip().lower()
 
-    # Validate branch
-    if branch_key not in _INVENTORY:
-        available_branches = ", ".join(sorted(_INVENTORY.keys()))
-        return (
-            f"ERROR: Branch '{payload.branch}' not recognised. "
-            f"Available branches: {available_branches}."
-        )
+    if branch_key not in INVENTORY_CAPACITY:
+        available_branches = ", ".join(sorted(INVENTORY_CAPACITY.keys()))
+        return f"ERROR: Branch '{payload.branch}' not recognised. Available branches: {available_branches}."
 
-    # Dynamically generate inventory for the requested date
-    date_inventory = _get_date_inventory(branch_key, payload.arrival_date)
+    date_inventory = get_availability(branch_key, payload.arrival_date)
     rt_key = payload.room_type.strip().lower().replace(" ", "_")
 
-    # Validate room type
     if rt_key not in date_inventory:
-        return (
-            f"ERROR: Room type '{payload.room_type}' does not exist at "
-            f"'{payload.branch}'. Please choose from: {', '.join(date_inventory.keys())}."
-        )
+        return f"ERROR: Room type '{payload.room_type}' does not exist at '{payload.branch}'."
 
     room_info = date_inventory[rt_key]
-
-    # Check availability
     if room_info["units"] <= 0:
-        return (
-            f"ERROR: '{payload.room_type.replace('_', ' ').title()}' is sold out at "
-            f"NexCell {payload.branch.title()} on {payload.arrival_date}. "
-            "Please check alternative dates or room types."
-        )
+        return f"ERROR: '{payload.room_type.replace('_', ' ').title()}' is sold out at NexCell {payload.branch.title()} on {payload.arrival_date}."
 
-    # Compute checkout date and total cost
-    arrival = datetime.date.fromisoformat(payload.arrival_date)
-    checkout = arrival + datetime.timedelta(days=payload.nights)
     total_cost = room_info["price_gbp"] * payload.nights
 
-    # Generate a unique booking reference
-    booking_ref = f"NX-{datetime.date.today().year}-{uuid.uuid4().hex[:6].upper()}"
-
-    # We no longer manually decrement units because _get_date_inventory dynamically counts active _BOOKINGS.
-
-    # Persist booking record
-    _BOOKINGS[booking_ref] = {
-        "ref": booking_ref,
-        "guest": payload.guest_full_name,
-        "email": payload.guest_email or "not provided",
-        "branch": payload.branch.title(),
-        "room_type": rt_key,
-        "arrival": payload.arrival_date,
-        "checkout": str(checkout),
-        "nights": payload.nights,
-        "price_per_night_gbp": room_info["price_gbp"],
-        "total_cost_gbp": total_cost,
-        "status": "CONFIRMED",
-        "created_at": datetime.datetime.utcnow().isoformat(),
-    }
-
-    # The invoice will be generated and sent ONLY if the guest requests it via send_invoice.
-
-
+    booking_ref = db_create_booking(
+        guest_name=payload.guest_full_name,
+        guest_email=payload.guest_email or "not provided",
+        branch=branch_key,
+        room_type=rt_key,
+        arrival_date=payload.arrival_date,
+        nights=payload.nights,
+        price_per_night=room_info["price_gbp"],
+        total_cost=total_cost
+    )
 
     label = rt_key.replace("_", " ").title()
+    arrival = datetime.date.fromisoformat(payload.arrival_date)
+    checkout = arrival + datetime.timedelta(days=payload.nights)
+    
     confirmation = (
-        f"[CONFIRMED] Booking Confirmed!\n"
-        f"  Reference     : {booking_ref}\n"
-        f"  Guest         : {payload.guest_full_name}\n"
-        f"  Hotel         : NexCell {payload.branch.title()}\n"
-        f"  Room          : {label}\n"
-        f"  Check-in      : {payload.arrival_date}\n"
-        f"  Check-out     : {checkout}\n"
-        f"  Duration      : {payload.nights} night(s)\n"
-        f"  Total Cost    : £{total_cost} (£{room_info['price_gbp']}/night)\n"
-        f"  Status        : CONFIRMED\n"
+        f"[LOCKED] Booking Locked for 24 hours!\\n"
+        f"  Reference     : {booking_ref}\\n"
+        f"  Guest         : {payload.guest_full_name}\\n"
+        f"  Hotel         : NexCell {payload.branch.title()}\\n"
+        f"  Room          : {label}\\n"
+        f"  Check-in      : {payload.arrival_date}\\n"
+        f"  Check-out     : {checkout}\\n"
+        f"  Duration      : {payload.nights} night(s)\\n"
+        f"  Total Cost    : £{total_cost} (£{room_info['price_gbp']}/night)\\n"
+        f"  Status        : LOCKED\\n"
+        f"IMPORTANT: Payment must be completed within 24 hours to confirm the booking."
     )
-    if payload.guest_email:
-        confirmation += f"  Confirmation  : Sent to {payload.guest_email}\n"
-
     return confirmation
+
+@mcp.tool()
+async def lookup_booking(reference: str) -> str:
+    """Look up the details of an existing booking by its reference number."""
+    booking = get_booking(reference)
+    if not booking:
+        return f"ERROR: Booking reference '{reference}' not found."
+    return f"Booking Details:\n" + "\n".join([f"  {k}: {v}" for k, v in booking.items()])
+
+@mcp.tool()
+async def modify_booking(reference: str, new_room_type: str = "", new_guest_name: str = "") -> str:
+    """Modify a booking. Can change room type or guest name. Does not support date changes."""
+    booking = get_booking(reference)
+    if not booking:
+        return f"ERROR: Booking reference '{reference}' not found."
+    
+    msgs = []
+    current_ref = reference
+    if new_room_type:
+        try:
+            res = modify_booking_room(current_ref, new_room_type)
+            current_ref = res["new_reference"]
+            msgs.append(f"Room type changed to {new_room_type}. New Reference: {current_ref}. Price Difference: £{res['price_difference']}. New Total: £{res['new_total']}.")
+        except Exception as e:
+            msgs.append(f"ERROR changing room type: {e}")
+            
+    if new_guest_name:
+        success = modify_booking_name(current_ref, new_guest_name)
+        if success:
+            msgs.append(f"Guest name updated to {new_guest_name}.")
+            
+    return "\n".join(msgs) if msgs else "No changes requested."
+
+@mcp.tool()
+async def cancel_reservation(reference: str) -> str:
+    """Cancel a booking by reference."""
+    if db_cancel_booking(reference):
+        return f"SUCCESS: Booking '{reference}' cancelled successfully."
+    return f"ERROR: Booking '{reference}' not found."
+
 
 
 # ---------------------------------------------------------------------------
@@ -643,86 +627,38 @@ async def search_faq(
 # Tool 4 – Send Invoice
 # ---------------------------------------------------------------------------
 
-@mcp.tool()
-async def send_invoice(
-    booking_id: str,
-    email_address: str,
-) -> str:
-    """Send an invoice email to the guest for a confirmed booking."""
-    payload = InvoiceRequest(
-        booking_id=booking_id,
-        email_address=email_address
-    )
-    success, message = await _generate_invoice_html(payload.booking_id, payload.email_address)
-    if success:
-        return f"SUCCESS: Invoice successfully sent to {payload.email_address}."
-    else:
-        return f"ERROR: Failed to send invoice. Details: {message}"
+# send_invoice is defined after _generate_invoice_html below.
 
 # ---------------------------------------------------------------------------
 # Utility – Email & HTML Generation
 # ---------------------------------------------------------------------------
 
-def _send_email_smtp(to_email: str, subject: str, html_content: str, images: list[str]) -> bool:
+def _send_email_resend(to_email: str, subject: str, html_content: str) -> bool:
     import os
+    import resend
 
-    smtp_server = os.environ.get("SMTP_SERVER", "smtp.gmail.com")
-    smtp_port = int(os.environ.get("SMTP_PORT", 465))
-    gmail_user = os.environ.get("SENDER_EMAIL") or os.environ.get("GMAIL_ADDRESS")
-    gmail_pwd = os.environ.get("SENDER_PASSWORD") or os.environ.get("GMAIL_APP_PASSWORD")
-    if not gmail_user or not gmail_pwd:
-        print("WARNING: Email credentials missing in .env, skipping SMTP.")
+    resend_api_key = os.environ.get("RESEND_API_KEY")
+    if not resend_api_key:
+        print("WARNING: RESEND_API_KEY missing in .env, skipping email.")
         return False
+        
+    resend.api_key = resend_api_key
+    sender = os.environ.get("SENDER_EMAIL", "onboarding@resend.dev")
+    
     try:
-        msg = MIMEMultipart("related")
-        msg["Subject"] = subject
-        msg["From"] = gmail_user
-        msg["To"] = to_email
-        
-        msg_alternative = MIMEMultipart('alternative')
-        msg.attach(msg_alternative)
-
-        part = MIMEText(html_content, "html")
-        msg_alternative.attach(part)
-        
-        # Attach images with CID
-        for img_name in images:
-            img_path = PROJECT_ROOT / "assets" / "images" / img_name
-            if img_path.exists():
-                with open(img_path, "rb") as f:
-                    subtype = img_name.split('.')[-1].lower()
-                    if subtype == 'jpg':
-                        subtype = 'jpeg'
-                    msg_image = MIMEImage(f.read(), _subtype=subtype)
-                    msg_image.add_header('Content-ID', f'<{img_name}>')
-                    msg_image.add_header('Content-Disposition', 'inline', filename=img_name)
-                    msg.attach(msg_image)
-            else:
-                print(f"Warning: Image {img_path} not found for email attachment.")
-
-        server = smtplib.SMTP_SSL(smtp_server, smtp_port)
-        server.login(gmail_user, gmail_pwd)
-        server.sendmail(gmail_user, to_email, msg.as_string())
-        server.quit()
+        params: resend.Emails.SendParams = {
+            "from": sender,
+            "to": [to_email],
+            "subject": subject,
+            "html": html_content,
+        }
+        resend.Emails.send(params)
         return True
     except Exception as e:
-        print(f"ERROR sending email: {e}")
+        print(f"ERROR sending email via Resend: {e}")
         return False
 
-@mcp.tool()
-async def send_invoice(
-    booking_id: str,
-    email_address: str,
-) -> str:
-    """Generate and email an HTML invoice for a confirmed booking. Saves a local copy. Requires booking_id and email_address."""
-    payload = InvoiceRequest(
-        booking_id=booking_id,
-        email_address=email_address
-    )
-    success, message = await _generate_invoice_html(payload.booking_id, payload.email_address)
-    if success:
-        return f"SUCCESS: HTML invoice generated. {message}"
-    return message
+# send_invoice is defined below at line 808.
 
 # ---------------------------------------------------------------------------
 # Standalone HTTP API (zero-LLM invoice endpoints)
@@ -731,100 +667,146 @@ async def send_invoice(
 
 async def _generate_invoice_html(booking_id: str, email_address: str) -> tuple[bool, str]:
     """
-    Core invoice generation logic extracted for reuse.
-    Returns (success: bool, message: str)
-    If success, the HTML is saved to invoices/<booking_id>.html
+    Core invoice generation logic — reads from SQLite DB.
+    Returns (success: bool, message: str).
+    On success the HTML is saved to invoices/invoice_<booking_id>.html
+    and an SMTP email is attempted if credentials are configured.
     """
-    import os
-
-    if booking_id not in _BOOKINGS:
+    booking = get_booking(booking_id)
+    if not booking:
         return False, f"ERROR: Booking reference '{booking_id}' not found."
 
-    booking = _BOOKINGS[booking_id]
-
-    arr_date = datetime.date.fromisoformat(booking["arrival"])
-    checkout_date = arr_date + datetime.timedelta(days=booking["nights"])
+    arr_date = datetime.date.fromisoformat(booking["arrival_date"])
+    checkout_date = datetime.date.fromisoformat(booking["checkout_date"])
 
     branch_key = booking["branch"].lower()
-    room_key = booking["room_type"]
-    price_per_night = _INVENTORY[branch_key][room_key]["price_gbp"]
-    total_amount = price_per_night * booking["nights"]
-    
+    room_key   = booking["room_type"]
+    price_per_night = int(booking["price_per_night"])
+    total_amount    = int(booking["total_cost"])
+
     branch_addresses = {
-        "london": ("42 Regent Street,<br>London,<br>W1B 5TR,<br>United Kingdom.", "42 Regent Street, London, W1B 5TR, UK."),
-        "manchester": ("15 Deansgate,<br>Manchester,<br>M3 1AZ,<br>United Kingdom.", "15 Deansgate, Manchester, M3 1AZ, UK."),
-        "edinburgh": ("105 Victoria St,<br>Edinburgh,<br>EH1 2EX,<br>United Kingdom.", "105 Victoria St, Edinburgh, EH1 2EX, UK.")
+        "london":     ("42 Regent Street,<br>London,<br>W1B 5TR,<br>United Kingdom.",   "42 Regent Street, London, W1B 5TR, UK."),
+        "manchester": ("15 Deansgate,<br>Manchester,<br>M3 1AZ,<br>United Kingdom.",     "15 Deansgate, Manchester, M3 1AZ, UK."),
+        "edinburgh":  ("105 Victoria St,<br>Edinburgh,<br>EH1 2EX,<br>United Kingdom.", "105 Victoria St, Edinburgh, EH1 2EX, UK."),
     }
-    address_html, address_inline = branch_addresses.get(branch_key, ("1220 Ocean View Drive,<br>Seaside Cover, CA,<br>United States.", "1220 Ocean View Drive, Seaside Cover, CA, US."))
+    address_html, address_inline = branch_addresses.get(
+        branch_key,
+        ("1220 Ocean View Drive,<br>Seaside Cover, CA,<br>United States.",
+         "1220 Ocean View Drive, Seaside Cover, CA, US."),
+    )
 
     room_label = room_key.replace("_", " ").title()
     if room_key == "executive_suite":
         room_label = "Premium Suite"
 
-    guest_str = "Up to 4 Guests" if room_key == "standard_twin" else ("Up to 5 Guests" if room_key == "deluxe_double" else "2 Adults, 1 Child")
-    room_img = "Standard_twin.jpg" if room_key == "standard_twin" else ("deluxe_double.jpg" if room_key == "deluxe_double" else "executive_room.jpg")
+    guest_str = (
+        "Up to 4 Guests" if room_key == "standard_twin"
+        else "Up to 5 Guests" if room_key == "deluxe_double"
+        else "2 Adults, 1 Child"
+    )
+    room_img = (
+        "Standard_twin.jpg" if room_key == "standard_twin"
+        else "deluxe_double.jpg" if room_key == "deluxe_double"
+        else "executive_room.jpg"
+    )
 
-    room_amenities = []
-    if room_key != 'standard_twin':
-        room_amenities.append("<img src='cid:breakfast.png' alt='Breakfast'> Breakfast")
+    room_amenities: list[str] = []
+    if room_key != "standard_twin":
+        room_amenities.append(f"<img src='{PUBLIC_URL}/assets/images/breakfast.png' alt='Breakfast'> Breakfast")
     else:
         room_amenities.append("Standard Setup")
-    if room_key == 'executive_suite':
-        room_amenities.append("<img src='cid:dining.png' alt='Dining'> Fine Dining")
-        room_amenities.append("<img src='cid:refreshments.png' alt='Snacks'> Refreshments")
+    if room_key == "executive_suite":
+        room_amenities.append(f"<img src='{PUBLIC_URL}/assets/images/dining.png' alt='Dining'> Fine Dining")
+        room_amenities.append(f"<img src='{PUBLIC_URL}/assets/images/refreshments.png' alt='Snacks'> Refreshments")
 
-    # Load Jinja2 template
-    env = Environment(loader=FileSystemLoader(str(PROJECT_ROOT / "templates")))
+    # Choose template based on payment status
+    template_name = (
+        "confirmation_invoice_template.html"
+        if booking["status"] == "BOOKED"
+        else "invoice_template.html"
+    )
+    jinja_env = Environment(loader=FileSystemLoader(str(PROJECT_ROOT / "templates")))
     try:
-        template = env.get_template("invoice_template.html")
-    except Exception as e:
-        return False, f"ERROR: Could not load template: {e}"
+        template = jinja_env.get_template(template_name)
+    except Exception as exc:
+        return False, f"ERROR: Could not load template '{template_name}': {exc}"
+
+    # Fetch payment history to compute balances
+    payments = get_payment_history(booking_id)
+    total_paid = sum(p["amount_gbp"] for p in payments if p["status"] == "COMPLETED")
+    balance_due = total_amount - total_paid
+    refund_due = 0
+    if balance_due < 0:
+        refund_due = -balance_due
+        balance_due = 0
+    has_modifications = len(payments) > 0 and (balance_due > 0 or refund_due > 0)
 
     email_html = template.render(
-        guest_name=booking['guest'].split(" ")[0],
+        guest_name=booking["guest_name"].split(" ")[0],
         booking_id=booking_id,
         room_img=room_img,
-        check_in_day=arr_date.strftime('%A'),
-        check_in_date=arr_date.strftime('%b %d, %Y'),
-        check_out_day=checkout_date.strftime('%A'),
-        check_out_date=checkout_date.strftime('%b %d, %Y'),
+        check_in_day=arr_date.strftime("%A"),
+        check_in_date=arr_date.strftime("%b %d, %Y"),
+        check_out_day=checkout_date.strftime("%A"),
+        check_out_date=checkout_date.strftime("%b %d, %Y"),
         room_label=room_label,
         guest_str=guest_str,
         room_amenities=room_amenities,
         price_per_night=price_per_night,
-        nights=booking['nights'],
+        nights=booking["nights"],
         total_amount=total_amount,
-        branch_name=booking['branch'].title(),
+        branch_name=booking["branch"].title(),
         branch_address=address_html,
         branch_address_inline=address_inline,
-        img_prefix="cid:"
+        img_prefix=f"{PUBLIC_URL}/assets/images/",
+        payment_url=f"{PUBLIC_URL}/pay/{booking_id}",
+        diff_payment_url=f"{PUBLIC_URL}/pay/diff/{booking_id}?amount={balance_due}",
+        invoice_url=f"{PUBLIC_URL}/invoice/{booking_id}",
+        payments=payments,
+        total_paid=total_paid,
+        balance_due=balance_due,
+        refund_due=refund_due,
+        has_modifications=has_modifications,
     )
 
-    local_html = email_html.replace("cid:", "../assets/images/")
-
+    # Save a browser-viewable local copy
     invoices_dir = PROJECT_ROOT / "invoices"
     invoices_dir.mkdir(exist_ok=True)
+    local_html = email_html.replace(f"{PUBLIC_URL}/assets/images/", "/assets/images/")
     file_path = invoices_dir / f"invoice_{booking_id}.html"
-    with open(file_path, "w", encoding="utf-8") as f:
-        f.write(local_html)
+    with open(file_path, "w", encoding="utf-8") as fh:
+        fh.write(local_html)
 
-    # Gather required images
-    required_images = ["logo.png", room_img, "wifi.png", "gym.png", "pool.png", "parking.png"]
-    if room_key != 'standard_twin':
-        required_images.append("breakfast.png")
-    if room_key == 'executive_suite':
-        required_images.extend(["dining.png", "refreshments.png"])
-
-    # Attempt to send email
-    email_status = "Mocked locally."
-    if email_address and email_address != "not provided":
-        sent = _send_email_smtp(email_address, f"Your NexCell Booking Confirmation: {booking_id}", email_html, required_images)
-        if sent:
-            email_status = f"Sent to {email_address} via SMTP."
-        else:
-            email_status = f"Failed to send via SMTP (check console logs). Saved locally."
+    # Call Resend API in background thread
+    email_status = "Saved locally (no email configured)."
+    if email_address and email_address not in ("", "not provided"):
+        import asyncio
+        sent = await asyncio.to_thread(
+            _send_email_resend,
+            email_address,
+            f"Your NexCell Booking: {booking_id}",
+            email_html,
+        )
+        email_status = (
+            f"Sent to {email_address} via Resend."
+            if sent
+            else "Resend API failed — check server logs. Invoice saved locally."
+        )
 
     return True, f"File: {file_path}. {email_status}"
+
+
+@mcp.tool()
+async def send_invoice(
+    booking_id: str,
+    email_address: str,
+) -> str:
+    """Generate and email an HTML invoice for a booking. Works for both LOCKED (pre-payment) and BOOKED (confirmed) states."""
+    payload = InvoiceRequest(booking_id=booking_id, email_address=email_address)
+    success, message = await _generate_invoice_html(payload.booking_id, payload.email_address)
+    if success:
+        return f"SUCCESS: Invoice processed. {message}"
+    return message
 
 
 async def api_invoice(request: Request) -> JSONResponse:
@@ -858,6 +840,12 @@ async def view_invoice(request: Request) -> HTMLResponse:
         with open(file_path, "r", encoding="utf-8") as f:
             return HTMLResponse(f.read())
     return HTMLResponse(f"<h2>Invoice {booking_id} not found. Please generate it first.</h2>", status_code=404)
+
+from starlette.routing import Route
+invoice_routes = [
+    Route("/api/invoice", api_invoice, methods=["POST"]),
+    Route("/invoice/{booking_id}", view_invoice, methods=["GET"]),
+]
 
 
 # ---------------------------------------------------------------------------

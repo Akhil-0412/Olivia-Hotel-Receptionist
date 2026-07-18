@@ -1,0 +1,154 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>NexCell Hotels – Booking Confirmed</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <style>
+        *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+        body {
+            font-family: 'Inter', sans-serif;
+            background: linear-gradient(135deg, #0f172a 0%, #1e293b 50%, #0f172a 100%);
+            min-height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 24px 16px;
+            color: #e2e8f0;
+        }
+
+        .card {
+            background: #1e293b;
+            border: 1px solid #334155;
+            border-radius: 20px;
+            padding: 48px 40px;
+            width: 100%;
+            max-width: 480px;
+            box-shadow: 0 25px 60px rgba(0,0,0,0.5);
+            text-align: center;
+        }
+
+        /* Success animation */
+        .tick-circle {
+            width: 80px; height: 80px;
+            background: linear-gradient(135deg, #10b981, #059669);
+            border-radius: 50%;
+            display: flex; align-items: center; justify-content: center;
+            font-size: 36px;
+            margin: 0 auto 24px;
+            box-shadow: 0 0 30px rgba(16,185,129,0.35);
+            animation: pop 0.4s cubic-bezier(0.34,1.56,0.64,1) forwards;
+        }
+
+        @keyframes pop {
+            from { transform: scale(0); opacity: 0; }
+            to   { transform: scale(1); opacity: 1; }
+        }
+
+        h1 { font-size: 26px; font-weight: 700; color: #f1f5f9; margin-bottom: 8px; }
+        .subhead { font-size: 15px; color: #94a3b8; margin-bottom: 32px; }
+
+        .ref-box {
+            background: #0f172a;
+            border: 1px solid #6366f1;
+            border-radius: 12px;
+            padding: 16px 24px;
+            margin: 0 auto 32px;
+            display: inline-block;
+            min-width: 260px;
+        }
+        .ref-label { font-size: 11px; text-transform: uppercase; letter-spacing: 0.1em; color: #64748b; margin-bottom: 4px; }
+        .ref-code { font-size: 20px; font-weight: 700; color: #a78bfa; font-family: monospace; letter-spacing: 0.05em; }
+
+        /* Details grid */
+        .details {
+            background: #0f172a;
+            border: 1px solid #1e3a5f;
+            border-radius: 12px;
+            padding: 20px;
+            margin-bottom: 32px;
+            text-align: left;
+        }
+        .detail-row {
+            display: flex;
+            justify-content: space-between;
+            padding: 7px 0;
+            border-bottom: 1px solid #1e293b;
+            font-size: 14px;
+        }
+        .detail-row:last-child { border-bottom: none; padding-bottom: 0; }
+        .det-label { color: #64748b; }
+        .det-value { color: #e2e8f0; font-weight: 500; }
+        .det-value.amount { color: #34d399; font-size: 16px; }
+
+        /* CTA button */
+        .btn-home {
+            display: inline-block;
+            background: linear-gradient(135deg, #6366f1, #8b5cf6);
+            color: white;
+            text-decoration: none;
+            border-radius: 10px;
+            padding: 14px 32px;
+            font-size: 15px;
+            font-weight: 600;
+            font-family: 'Inter', sans-serif;
+            transition: opacity 0.2s, transform 0.15s;
+        }
+        .btn-home:hover { opacity: 0.9; transform: translateY(-1px); }
+
+        .footer-note { font-size: 12px; color: #475569; margin-top: 20px; }
+    </style>
+</head>
+<body>
+<div class="card">
+
+    <div class="tick-circle">✓</div>
+
+    <h1>Booking Confirmed!</h1>
+    <p class="subhead">Thank you, {{ booking.guest_name.split(' ')[0] }}. Your room is secured.</p>
+
+    <div class="ref-box">
+        <div class="ref-label">Booking Reference</div>
+        <div class="ref-code">{{ booking.reference }}</div>
+    </div>
+
+    <div class="details">
+        <div class="detail-row">
+            <span class="det-label">Hotel</span>
+            <span class="det-value">NexCell {{ booking.branch | title }}</span>
+        </div>
+        <div class="detail-row">
+            <span class="det-label">Room</span>
+            <span class="det-value">{{ booking.room_type | replace('_', ' ') | title }}</span>
+        </div>
+        <div class="detail-row">
+            <span class="det-label">Check-in</span>
+            <span class="det-value">{{ booking.arrival_date }}</span>
+        </div>
+        <div class="detail-row">
+            <span class="det-label">Check-out</span>
+            <span class="det-value">{{ booking.checkout_date }}</span>
+        </div>
+        <div class="detail-row">
+            <span class="det-label">Nights</span>
+            <span class="det-value">{{ booking.nights }}</span>
+        </div>
+        <div class="detail-row">
+            <span class="det-label">Amount Paid</span>
+            <span class="det-value amount">£{{ booking.total_cost }}</span>
+        </div>
+    </div>
+
+    <p style="font-size:14px;color:#64748b;margin-bottom:24px;">
+        A confirmation invoice has been sent to your registered email address.
+    </p>
+
+    <a href="/" class="btn-home">Return to Home ›</a>
+
+    <p class="footer-note">NexCell Hotels · Demo Environment · No real charges were made</p>
+</div>
+</body>
+</html>
