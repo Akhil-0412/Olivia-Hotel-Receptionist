@@ -24,6 +24,14 @@ from fastapi import FastAPI
 from fastapi.responses import HTMLResponse
 from fastapi.staticfiles import StaticFiles
 
+try:
+    import spaces
+    @spaces.GPU
+    def _dummy_gpu_function():
+        pass
+except ImportError:
+    pass
+
 from src.database import init_db
 from src.lock_scheduler import lock_expiry_daemon
 from src.payment_portal import payment_routes
