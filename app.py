@@ -24,11 +24,7 @@ from fastapi import FastAPI
 from fastapi.responses import HTMLResponse
 from fastapi.staticfiles import StaticFiles
 
-import spaces
 
-@spaces.GPU
-def _dummy_gpu_function_for_hf_ast_parser():
-    pass
 
 from src.database import init_db
 from src.lock_scheduler import lock_expiry_daemon
