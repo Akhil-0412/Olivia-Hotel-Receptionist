@@ -2,7 +2,7 @@
 name = "nexcell-voice-agent"
 version = "2026.1.0"
 description = "NexCell AI Voice Assistant – FastMCP + LangGraph orchestration layer"
-requires-python = ">=3.11"
+requires-python = ">=3.10"
 dependencies = [
     # MCP server layer
     "fastmcp>=2.0.0",
@@ -34,7 +34,7 @@ dependencies = [
     "livekit-plugins-google>=1.6.4",
     "fastapi>=0.115.2",
     "uvicorn>=0.51.0",
-    "starlette==0.38.6",
+
     "resend>=2.1.0",
 ]
 
