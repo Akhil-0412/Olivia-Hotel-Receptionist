@@ -1,0 +1,27 @@
+# render.yaml — Render Blueprint for one-click deploy
+# https://render.com/docs/blueprint-spec
+services:
+  - type: web
+    name: olivia-hotel-receptionist
+    runtime: docker
+    plan: free
+    dockerfilePath: ./Dockerfile
+    envVars:
+      - key: PORT
+        value: "10000"
+      - key: OPENAI_API_KEY
+        sync: false
+      - key: GROQ_API_KEY
+        sync: false
+      - key: Cartesia_API_KEY
+        sync: false
+      - key: RESEND_API_KEY
+        sync: false
+      - key: LIVEKIT_URL
+        sync: false
+      - key: LIVEKIT_API_KEY
+        sync: false
+      - key: LIVEKIT_API_SECRET
+        sync: false
+      - key: GOOGLE_API_KEY
+        sync: false

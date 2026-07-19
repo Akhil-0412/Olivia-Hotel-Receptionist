@@ -28,15 +28,15 @@ from typing import Literal
 # ---------------------------------------------------------------------------
 # Strict Startup Validation for Deployment
 # ---------------------------------------------------------------------------
-if os.environ.get("SPACE_ID"):
-    PUBLIC_URL = os.environ.get("PUBLIC_URL")
-    if not PUBLIC_URL:
-        raise ValueError("CRITICAL ERROR: PUBLIC_URL environment variable is required on Hugging Face to avoid sending broken links in emails.")
-    if not PUBLIC_URL.startswith("https://"):
-        raise ValueError("CRITICAL ERROR: PUBLIC_URL must start with https://")
-    PUBLIC_URL = PUBLIC_URL.rstrip("/")
+# Priority: PUBLIC_URL (explicit) > RENDER_EXTERNAL_URL (Render auto) > SPACE_ID (HF) > localhost
+if os.environ.get("PUBLIC_URL"):
+    PUBLIC_URL = os.environ["PUBLIC_URL"].rstrip("/")
+elif os.environ.get("RENDER_EXTERNAL_URL"):
+    PUBLIC_URL = os.environ["RENDER_EXTERNAL_URL"].rstrip("/")
+elif os.environ.get("SPACE_ID"):
+    raise ValueError("CRITICAL ERROR: PUBLIC_URL environment variable is required on Hugging Face.")
 else:
-    PUBLIC_URL = os.environ.get("PUBLIC_URL", "http://127.0.0.1:7860").rstrip("/")
+    PUBLIC_URL = "http://127.0.0.1:7860"
 
 from dotenv import load_dotenv
 from jinja2 import Environment, FileSystemLoader

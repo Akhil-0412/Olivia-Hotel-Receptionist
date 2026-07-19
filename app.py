@@ -1,35 +1,34 @@
 """
 app.py
 ======
-NexCell Orchestrator — runs all three services in a single process:
-  1. MCP Server (FastMCP, port 8000 via subprocess)
-  2. Voice Worker (LiveKit agent, via subprocess)
-  3. FastAPI Health / Payment server (uvicorn, port 7860)
+NexCell Orchestrator — runs services in a single process for memory efficiency:
+  1. MCP Server (FastMCP, in-process async task on port 8000)
+  2. Voice Worker (LiveKit agent, subprocess — needs its own event loop)
+  3. FastAPI Health / Payment server (uvicorn, port from $PORT env)
 
 The FastAPI app also:
   - Initialises the SQLite database on startup
   - Starts the 24-hour lock-expiry background daemon
   - Serves the mock Stripe payment portal under /pay/...
   - Serves static assets under /assets/...
+
+Optimised for Render.com free tier (512 MB RAM / 0.1 vCPU).
 """
 import asyncio
 import contextlib
 import os
 import subprocess
 import sys
-import time
 
 import uvicorn
 from fastapi import FastAPI
 from fastapi.responses import HTMLResponse
 from fastapi.staticfiles import StaticFiles
 
-
-
 from src.database import init_db
 from src.lock_scheduler import lock_expiry_daemon
 from src.payment_portal import payment_routes
-from src.mcp_server import invoice_routes
+from src.mcp_server import invoice_routes, mcp
 
 # ---------------------------------------------------------------------------
 # Lifespan (startup/shutdown) — FastAPI 0.115+ compatible
@@ -40,15 +39,43 @@ async def lifespan(app: FastAPI):
     # --- startup ---
     init_db()
     print("[App] SQLite DB initialised.", flush=True)
-    task = asyncio.create_task(lock_expiry_daemon())
+
+    # Start lock expiry daemon
+    lock_task = asyncio.create_task(lock_expiry_daemon())
     print("[App] Lock expiry daemon started.", flush=True)
+
+    # Start MCP server in-process (saves ~100 MB vs subprocess)
+    mcp_task = asyncio.create_task(
+        mcp.run_async(transport="sse", host="127.0.0.1", port=8000)
+    )
+    print("[App] MCP Server started in-process on port 8000.", flush=True)
+
+    # Start Voice Worker as subprocess (needs its own event loop)
+    voice_process = None
+    if os.environ.get("LIVEKIT_URL"):
+        print("[App] Starting Voice Worker subprocess...", flush=True)
+        voice_process = subprocess.Popen(
+            [sys.executable, "-m", "src.voice_server", "dev"],
+            stdout=sys.stdout,
+            stderr=sys.stderr,
+            cwd=os.path.dirname(os.path.abspath(__file__)),
+        )
+        print("[App] Voice Worker started.", flush=True)
+    else:
+        print("[App] LIVEKIT_URL not set — voice worker skipped.", flush=True)
+
     yield
+
     # --- shutdown ---
-    task.cancel()
-    try:
-        await task
-    except asyncio.CancelledError:
-        pass
+    lock_task.cancel()
+    mcp_task.cancel()
+    if voice_process:
+        voice_process.terminate()
+    for t in [lock_task, mcp_task]:
+        try:
+            await t
+        except (asyncio.CancelledError, Exception):
+            pass
 
 
 # ---------------------------------------------------------------------------
@@ -65,8 +92,6 @@ if os.path.isdir(_assets_dir):
 # Mount Starlette payment routes & invoice routes
 for route in payment_routes + invoice_routes:
     app.router.routes.append(route)
-
-
 
 
 # ---------------------------------------------------------------------------
@@ -91,44 +116,10 @@ def health_check() -> dict:
 
 
 # ---------------------------------------------------------------------------
-# Entry point — orchestrates all processes
+# Entry point
 # ---------------------------------------------------------------------------
 
-def main() -> None:
-    # 1. Determine project root
-    project_root = os.path.dirname(os.path.abspath(__file__))
-    
-    # 2. Prefer the virtual environment's Python if it exists
-    if os.name == 'nt':
-        venv_python = os.path.join(project_root, ".venv", "Scripts", "python.exe")
-    else:
-        venv_python = os.path.join(project_root, ".venv", "bin", "python")
-        
-    python_exe = venv_python if os.path.exists(venv_python) else sys.executable
-
-    print("[Orchestrator] Starting MCP Server (port 8000)...", flush=True)
-    mcp_process = subprocess.Popen(
-        [python_exe, "-m", "src.mcp_server"],
-        stdout=sys.stdout,
-        stderr=sys.stderr,
-        cwd=project_root,
-    )
-
-    print("[Orchestrator] Waiting for MCP Server to bind (5 s)...", flush=True)
-    time.sleep(5)
-
-    print("[Orchestrator] Starting Voice Worker...", flush=True)
-    voice_process = subprocess.Popen(
-        [python_exe, "-m", "src.voice_server", "dev"],
-        stdout=sys.stdout,
-        stderr=sys.stderr,
-        cwd=project_root,
-    )
-
-    port = int(os.environ.get("PORT", 7860))
-    print(f"[Orchestrator] Starting Payment/Health Server on port {port}...", flush=True)
-    uvicorn.run(app, host="0.0.0.0", port=port, log_level="info")
-
-
 if __name__ == "__main__":
-    main()
+    port = int(os.environ.get("PORT", 10000))
+    print(f"[Orchestrator] Starting NexCell on port {port}...", flush=True)
+    uvicorn.run(app, host="0.0.0.0", port=port, log_level="info")
