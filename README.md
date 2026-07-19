@@ -3,7 +3,7 @@ title: NexCell Voice Agent
 emoji: 🏨
 colorFrom: blue
 colorTo: indigo
-sdk: gradio
+sdk: docker
 app_file: app.py
 pinned: false
 ---
