@@ -26,11 +26,16 @@ from fastapi.staticfiles import StaticFiles
 
 try:
     import spaces
-    @spaces.GPU
-    def _dummy_gpu_function():
-        pass
+    import gradio as gr
+    with gr.Blocks() as dummy_ui:
+        gr.Markdown("Hotel Receptionist Backend")
+        btn = gr.Button("Dummy")
+        @spaces.GPU
+        def _dummy():
+            pass
+        btn.click(_dummy)
 except ImportError:
-    pass
+    dummy_ui = None
 
 from src.database import init_db
 from src.lock_scheduler import lock_expiry_daemon
@@ -71,6 +76,9 @@ if os.path.isdir(_assets_dir):
 # Mount Starlette payment routes & invoice routes
 for route in payment_routes + invoice_routes:
     app.router.routes.append(route)
+
+if dummy_ui:
+    app = gr.mount_gradio_app(app, dummy_ui, path="/dummy_ui")
 
 
 # ---------------------------------------------------------------------------
