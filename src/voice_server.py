@@ -46,7 +46,7 @@ from livekit.agents import (
     WorkerOptions,
     cli,
 )
-from livekit.plugins import elevenlabs, langchain, openai, cartesia
+from livekit.plugins import langchain, openai, cartesia
 
 # Fix import paths so the IDE and python can resolve it
 import sys
@@ -231,5 +231,7 @@ if __name__ == "__main__":
         WorkerOptions(
             agent_name="nexcell-receptionist",
             entrypoint_fnc=entrypoint,
+            load_threshold=0.99,  # free tier has low CPU ceiling; don't mark unavailable prematurely
+            num_idle_processes=0,  # don't pre-spawn worker processes — saves RAM on free tier
         )
     )
