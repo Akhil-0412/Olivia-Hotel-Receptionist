@@ -87,7 +87,7 @@ async def entrypoint(ctx: JobContext) -> None:
     tts = cartesia.TTS(
         voice="c46cf1f6-49a1-4d67-9a57-ff859a4046d3",
         model="sonic-3.5",
-        api_key=os.environ.get("Cartesia_API_KEY"),
+        api_key=os.environ.get("CARTESIA_API_KEY"),
     )
 
     # 4. Define the agent persona using our explicit instructions file

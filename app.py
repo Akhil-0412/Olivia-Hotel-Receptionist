@@ -55,7 +55,7 @@ async def lifespan(app: FastAPI):
     if os.environ.get("LIVEKIT_URL"):
         print("[App] Starting Voice Worker subprocess...", flush=True)
         voice_process = subprocess.Popen(
-            [sys.executable, "-m", "src.voice_server", "dev"],
+            [sys.executable, "-m", "src.voice_server", "start"],
             stdout=sys.stdout,
             stderr=sys.stderr,
             cwd=os.path.dirname(os.path.abspath(__file__)),
