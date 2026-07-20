@@ -712,14 +712,17 @@ async def _generate_invoice_html(booking_id: str, email_address: str) -> tuple[b
         else "executive_room.jpg"
     )
 
+    # Use GitHub raw assets in emails so they load reliably in external mail clients regardless of environment.
+    img_prefix_val = "https://raw.githubusercontent.com/Akhil-0412/Olivia-Hotel-Receptionist/main/assets/images/"
+
     room_amenities: list[str] = []
     if room_key != "standard_twin":
-        room_amenities.append(f"<img src='{PUBLIC_URL}/assets/images/breakfast.png' alt='Breakfast'> Breakfast")
+        room_amenities.append(f"<img src='{img_prefix_val}breakfast.png' alt='Breakfast'> Breakfast")
     else:
         room_amenities.append("Standard Setup")
     if room_key == "executive_suite":
-        room_amenities.append(f"<img src='{PUBLIC_URL}/assets/images/dining.png' alt='Dining'> Fine Dining")
-        room_amenities.append(f"<img src='{PUBLIC_URL}/assets/images/refreshments.png' alt='Snacks'> Refreshments")
+        room_amenities.append(f"<img src='{img_prefix_val}dining.png' alt='Dining'> Fine Dining")
+        room_amenities.append(f"<img src='{img_prefix_val}refreshments.png' alt='Snacks'> Refreshments")
 
     # Choose template based on payment status
     template_name = (
@@ -760,7 +763,7 @@ async def _generate_invoice_html(booking_id: str, email_address: str) -> tuple[b
         branch_name=booking["branch"].title(),
         branch_address=address_html,
         branch_address_inline=address_inline,
-        img_prefix=f"{PUBLIC_URL}/api/assets/images/",
+        img_prefix=img_prefix_val,
         payment_url=f"{PUBLIC_URL}/api/pay/{booking_id}",
         diff_payment_url=f"{PUBLIC_URL}/api/pay/diff/{booking_id}?amount={balance_due}",
         invoice_url=f"{PUBLIC_URL}/api/invoice/{booking_id}",
@@ -774,7 +777,7 @@ async def _generate_invoice_html(booking_id: str, email_address: str) -> tuple[b
     # Save a browser-viewable local copy
     invoices_dir = PROJECT_ROOT / "invoices"
     invoices_dir.mkdir(exist_ok=True)
-    local_html = email_html.replace(f"{PUBLIC_URL}/assets/images/", "/assets/images/")
+    local_html = email_html.replace(img_prefix_val, "/assets/images/")
     file_path = invoices_dir / f"invoice_{booking_id}.html"
     with open(file_path, "w", encoding="utf-8") as fh:
         fh.write(local_html)
