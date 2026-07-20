@@ -319,6 +319,34 @@ class AvailabilityRequest(BaseModel):
         ),
     )
 
+    @field_validator("branch", mode="before")
+    @classmethod
+    def normalize_branch(cls, v: str) -> str:
+        if not isinstance(v, str):
+            return v
+        return v.strip().lower()
+
+    @field_validator("room_type", mode="before")
+    @classmethod
+    def normalize_room_type(cls, v: str | None) -> str | None:
+        if not isinstance(v, str):
+            return v
+        v_clean = v.strip().lower().replace(" ", "_").replace("-", "_")
+        mappings = {
+            "deluxe": "deluxe_double",
+            "standard": "standard_twin",
+            "twin": "standard_twin",
+            "suite": "executive_suite",
+            "executive": "executive_suite",
+            "premium": "executive_suite",
+        }
+        if v_clean in mappings:
+            return mappings[v_clean]
+        for key, val in mappings.items():
+            if key in v_clean:
+                return val
+        return v_clean
+
     @field_validator("arrival_date")
     @classmethod
     def validate_date_format(cls, v: str) -> str:
@@ -361,6 +389,34 @@ class BookingRequest(BaseModel):
         default=None,
         description="Optional guest e-mail address for confirmation.",
     )
+
+    @field_validator("branch", mode="before")
+    @classmethod
+    def normalize_branch(cls, v: str) -> str:
+        if not isinstance(v, str):
+            return v
+        return v.strip().lower()
+
+    @field_validator("room_type", mode="before")
+    @classmethod
+    def normalize_room_type(cls, v: str) -> str:
+        if not isinstance(v, str):
+            return v
+        v_clean = v.strip().lower().replace(" ", "_").replace("-", "_")
+        mappings = {
+            "deluxe": "deluxe_double",
+            "standard": "standard_twin",
+            "twin": "standard_twin",
+            "suite": "executive_suite",
+            "executive": "executive_suite",
+            "premium": "executive_suite",
+        }
+        if v_clean in mappings:
+            return mappings[v_clean]
+        for key, val in mappings.items():
+            if key in v_clean:
+                return val
+        return v_clean
 
     @field_validator("arrival_date")
     @classmethod
