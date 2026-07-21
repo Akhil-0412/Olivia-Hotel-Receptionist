@@ -10,3 +10,5 @@ invoices/
 .pytest_cache/
 data/*.db  
  
+*.json
+*.db

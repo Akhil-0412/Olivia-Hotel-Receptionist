@@ -383,72 +383,166 @@ def transcribe_demo(audio):
         return f"Transcription error: {e}"
 
 
+def check_payment_url(request: gr.Request):
+    pay_ref = request.query_params.get("pay")
+    if pay_ref:
+        return [gr.update(visible=False), gr.update(visible=True), pay_ref]
+    return [gr.update(visible=True), gr.update(visible=False), ""]
+
+def load_payment_details(ref: str):
+    from src.database import get_booking
+    if not ref:
+        return "No reference", "N/A", "0", ""
+    booking = get_booking(ref)
+    if not booking:
+        return "Invalid booking", "N/A", "0", "Booking not found."
+    
+    status = booking["status"]
+    if status == "BOOKED":
+        return f"Ref: {booking['reference']}", "N/A", "0", "This booking is already confirmed and paid."
+    if status in ("EXPIRED", "CANCELLED"):
+        return f"Ref: {booking['reference']}", "N/A", "0", "This booking lock has expired or been cancelled."
+
+    details = (
+        f"**Guest:** {booking['guest_name']}\n\n"
+        f"**Hotel:** Crown & Crest {booking['branch'].title()}\n\n"
+        f"**Room:** {booking['room_type'].replace('_', ' ').title()}\n\n"
+        f"**Check-in:** {booking['arrival_date']}\n\n"
+        f"**Check-out:** {booking['checkout_date']}"
+    )
+    return f"Ref: {booking['reference']}", details, f"£{booking['total_cost']}", ""
+
+def process_mock_payment(ref: str, card: str):
+    from src.database import get_booking, record_payment, update_booking_status
+    booking = get_booking(ref)
+    if not booking or booking["status"] != "LOCKED":
+        return "Payment failed: Booking is not in a payable state.", gr.update(interactive=False)
+    
+    mock_last4 = card[-4:] if len(card) >= 4 else "0000"
+    record_payment(ref, booking["total_cost"], "FULL", mock_last4)
+    new_reference = update_booking_status(ref, "BOOKED")
+
+    def sync_send():
+        try:
+            import httpx
+            # The MCP server runs on 8000. Send a sync POST request.
+            httpx.post("http://127.0.0.1:8000/api/invoice", json={
+                "booking_id": new_reference,
+                "email_address": booking["guest_email"]
+            }, timeout=15.0)
+        except Exception as e:
+            print(f"Failed to send invoice: {e}", flush=True)
+            
+    import threading
+    threading.Thread(target=sync_send, daemon=True).start()
+
+    return f"✅ **Payment Successful!** Your confirmed reference is **{new_reference}**. An invoice has been emailed to {booking['guest_email']}.", gr.update(interactive=False)
+
+
 with gr.Blocks(css=CSS, title="Crown & Crest — Olivia AI Receptionist") as demo:
-    gr.HTML(HERO_HTML)
+    
+    with gr.Column(visible=True) as main_ui:
+        gr.HTML(HERO_HTML)
 
-    with gr.Tabs(elem_classes=["tab-nav"]):
-        with gr.Tab("📖 How to Connect"):
-            gr.Markdown(INSTRUCTIONS_MD)
+        with gr.Tabs(elem_classes=["tab-nav"]):
+            with gr.Tab("📖 How to Connect"):
+                gr.Markdown(INSTRUCTIONS_MD)
 
-        with gr.Tab("📊 System Status"):
-            gr.Markdown("### Live System Status")
-            status_output = gr.Markdown(get_status())
-            gr.Button("🔄 Refresh Status", variant="secondary").click(
-                fn=get_status,
-                outputs=status_output
-            )
-
-        with gr.Tab("⚡ ZeroGPU Transcription"):
-            gr.Markdown("""
-### Local Whisper Transcription (ZeroGPU A10G)
-Record or upload audio and get it transcribed locally using OpenAI Whisper running on an A10G GPU.
-This runs entirely on HuggingFace's hardware — no API calls, no rate limits.
-""")
-            with gr.Row():
-                audio_input = gr.Audio(
-                    sources=["microphone", "upload"],
-                    type="filepath",
-                    label="🎤 Record or Upload Audio"
+            with gr.Tab("📊 System Status"):
+                gr.Markdown("### Live System Status")
+                status_output = gr.Markdown(get_status())
+                gr.Button("🔄 Refresh Status", variant="secondary").click(
+                    fn=get_status,
+                    outputs=status_output
                 )
-                transcription_output = gr.Markdown(
-                    label="Transcription",
-                    value="*Transcription will appear here...*"
+
+            with gr.Tab("⚡ ZeroGPU Transcription"):
+                gr.Markdown("""
+    ### Local Whisper Transcription (ZeroGPU A10G)
+    Record or upload audio and get it transcribed locally using OpenAI Whisper running on an A10G GPU.
+    This runs entirely on HuggingFace's hardware — no API calls, no rate limits.
+    """)
+                with gr.Row():
+                    audio_input = gr.Audio(
+                        sources=["microphone", "upload"],
+                        type="filepath",
+                        label="🎤 Record or Upload Audio"
+                    )
+                    transcription_output = gr.Markdown(
+                        label="Transcription",
+                        value="*Transcription will appear here...*"
+                    )
+                gr.Button("🚀 Transcribe with ZeroGPU", variant="primary").click(
+                    fn=transcribe_demo,
+                    inputs=audio_input,
+                    outputs=transcription_output
                 )
-            gr.Button("🚀 Transcribe with ZeroGPU", variant="primary").click(
-                fn=transcribe_demo,
-                inputs=audio_input,
-                outputs=transcription_output
-            )
 
-        with gr.Tab("ℹ️ About"):
-            gr.Markdown("""
-### Crown & Crest AI Receptionist
+            with gr.Tab("ℹ️ About"):
+                gr.Markdown("""
+    ### Crown & Crest AI Receptionist
 
-**Olivia** is a production-grade AI voice receptionist built with:
+    **Olivia** is a production-grade AI voice receptionist built with:
 
-| Component | Technology |
-|---|---|
-| Voice Agent | LiveKit Agents SDK 1.6+ |
-| LLM | Google Gemini Flash Lite (via LangGraph ReAct) |
-| STT | Groq Whisper large-v3 |
-| TTS | Cartesia Sonic 3.5 |
-| Tool Calling | FastMCP + langchain-mcp-adapters |
-| GPU Transcription | OpenAI Whisper on ZeroGPU A10G |
-| Database | SQLite (bookings, locks) |
-| Payments | Mock Stripe portal |
+    | Component | Technology |
+    |---|---|
+    | Voice Agent | LiveKit Agents SDK 1.6+ |
+    | LLM | Google Gemini Flash Lite (via LangGraph ReAct) |
+    | STT | Groq Whisper large-v3 |
+    | TTS | Cartesia Sonic 3.5 |
+    | Tool Calling | FastMCP + langchain-mcp-adapters |
+    | GPU Transcription | OpenAI Whisper on ZeroGPU A10G |
+    | Database | SQLite (bookings, locks) |
+    | Payments | Native Gradio Portal |
 
-**Source:** [GitHub](https://github.com/Akhil-0412/Olivia-Hotel-Receptionist)
-""")
+    **Source:** [GitHub](https://github.com/Akhil-0412/Olivia-Hotel-Receptionist)
+    """)
+
+    with gr.Column(visible=False) as payment_ui:
+        gr.Markdown("## 👑 Crown & Crest — Secure Checkout")
+        pay_booking_id = gr.Textbox(visible=False)
+        
+        with gr.Row():
+            with gr.Column():
+                gr.Markdown("### Booking Summary")
+                ref_disp = gr.Markdown("Loading...")
+                details_disp = gr.Markdown("Loading...")
+                total_disp = gr.Markdown("### Total Due: £0")
+                msg_disp = gr.Markdown(elem_classes=["security-note"])
+            
+            with gr.Column():
+                gr.Markdown("### Payment Details (Demo)")
+                card_input = gr.Textbox(label="Card Number", placeholder="4242 4242 4242 4242", interactive=True)
+                gr.Row([
+                    gr.Textbox(label="Expiry (MM/YY)", placeholder="12/25", interactive=True),
+                    gr.Textbox(label="CVC", placeholder="123", interactive=True)
+                ])
+                name_input = gr.Textbox(label="Cardholder Name", interactive=True)
+                pay_btn = gr.Button("Secure Pay 🔒", variant="primary")
+                pay_result = gr.Markdown()
+
+        pay_booking_id.change(
+            fn=load_payment_details,
+            inputs=[pay_booking_id],
+            outputs=[ref_disp, details_disp, total_disp, msg_disp]
+        )
+        
+        pay_btn.click(
+            fn=process_mock_payment,
+            inputs=[pay_booking_id, card_input],
+            outputs=[pay_result, pay_btn]
+        )
+
+    demo.load(
+        fn=check_payment_url,
+        inputs=[],
+        outputs=[main_ui, payment_ui, pay_booking_id]
+    )
+
 
 if __name__ == "__main__":
-    from src.payment_portal import payment_routes
-    from src.mcp_server import invoice_routes
-
     demo.launch(
         server_name="0.0.0.0",
         server_port=7860,
-        share=False,
-        app_kwargs={
-            "routes": payment_routes + invoice_routes
-        }
+        share=False
     )
