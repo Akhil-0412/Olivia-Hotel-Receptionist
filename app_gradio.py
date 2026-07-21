@@ -440,22 +440,15 @@ This runs entirely on HuggingFace's hardware — no API calls, no rate limits.
 **Source:** [GitHub](https://github.com/Akhil-0412/Olivia-Hotel-Receptionist)
 """)
 
-if __name__ == "__main__" or True:
-    # Mount payment + invoice routes into the Gradio ASGI app so they are
-    # accessible on the public port (7860 on HF Space). Without this, those
-    # routes only live on the internal MCP port (8000) which is not exposed.
-    from fastapi import FastAPI
-    from starlette.routing import Route
+if __name__ == "__main__":
     from src.payment_portal import payment_routes
     from src.mcp_server import invoice_routes
 
-    _portal_app = FastAPI(routes=payment_routes + invoice_routes)
-
-    # gr.mount_gradio_app mounts a ASGI sub-application at a path prefix.
-    # We mount the portal at /api so /api/pay/... and /api/invoice/... work.
-    app = gr.mount_gradio_app(_portal_app, demo, path="/")
-
-    # When run directly, launch Gradio
-    if __name__ == "__main__":
-        import uvicorn
-        uvicorn.run(app, host="0.0.0.0", port=7860)
+    demo.launch(
+        server_name="0.0.0.0",
+        server_port=7860,
+        share=False,
+        app_kwargs={
+            "routes": payment_routes + invoice_routes
+        }
+    )
