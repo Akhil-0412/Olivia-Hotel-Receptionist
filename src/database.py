@@ -6,8 +6,19 @@ import json
 from pathlib import Path
 from typing import Optional
 
+import os
+
 PROJECT_ROOT = Path(__file__).parent.parent
-DB_PATH = PROJECT_ROOT / "data" / "nexcell.db"
+
+# On Hugging Face Spaces, /data/ is the persistent volume that survives rebuilds.
+# Locally, fall back to the project data/ directory.
+if os.environ.get("SPACE_HOST") or os.environ.get("SPACE_ID"):
+    _data_dir = Path("/data")
+    _data_dir.mkdir(parents=True, exist_ok=True)
+    DB_PATH = _data_dir / "hotel.db"
+else:
+    DB_PATH = PROJECT_ROOT / "data" / "nexcell.db"
+
 
 ROOM_TYPE_CODES = {
     "standard_twin": "ST",
