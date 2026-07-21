@@ -693,44 +693,82 @@ async def search_faq(
 
 def _send_email_resend(to_email: str, subject: str, html_content: str) -> bool:
     import os
-    import smtplib
+    import json
+    import base64
+    import urllib.request
+    import urllib.parse
     from email.mime.multipart import MIMEMultipart
     from email.mime.text import MIMEText
 
-    # 1. Try Gmail SMTP if configured
-    gmail_address = os.environ.get("GMAIL_ADDRESS")
-    gmail_app_password = os.environ.get("GMAIL_APP_PASSWORD")
+    # 1. Try Gmail API via OAuth2 (works on HF - uses HTTPS port 443, not blocked SMTP)
+    gmail_client_id = os.environ.get("GMAIL_CLIENT_ID")
+    gmail_client_secret = os.environ.get("GMAIL_CLIENT_SECRET")
+    gmail_refresh_token = os.environ.get("GMAIL_REFRESH_TOKEN")
+    gmail_address = os.environ.get("GMAIL_ADDRESS", "akhileshwarsecondacc@gmail.com")
 
-    if gmail_address and gmail_app_password:
+    if gmail_client_id and gmail_client_secret and gmail_refresh_token:
         try:
+            # Step 1: Get a fresh access token using the refresh token
+            token_data = urllib.parse.urlencode({
+                "client_id": gmail_client_id,
+                "client_secret": gmail_client_secret,
+                "refresh_token": gmail_refresh_token,
+                "grant_type": "refresh_token",
+            }).encode("utf-8")
+
+            token_req = urllib.request.Request(
+                "https://oauth2.googleapis.com/token",
+                data=token_data,
+                headers={"Content-Type": "application/x-www-form-urlencoded"},
+                method="POST"
+            )
+            with urllib.request.urlopen(token_req) as resp:
+                token_resp = json.loads(resp.read().decode("utf-8"))
+
+            access_token = token_resp.get("access_token")
+            if not access_token:
+                raise ValueError(f"No access_token in response: {token_resp}")
+
+            # Step 2: Build the email as MIME
             msg = MIMEMultipart("alternative")
             msg["Subject"] = subject
             msg["From"] = f"Crown & Crest <{gmail_address}>"
             msg["To"] = to_email
-            
-            # Attach HTML content
-            part = MIMEText(html_content, "html")
-            msg.attach(part)
-            
-            # Connect to Gmail SMTP server (SSL on port 465)
-            with smtplib.SMTP_SSL("smtp.gmail.com", 465) as server:
-                server.login(gmail_address, gmail_app_password)
-                server.sendmail(gmail_address, to_email, msg.as_string())
-            print(f"[Email] Successfully sent email via Gmail SMTP to {to_email}")
+            msg.attach(MIMEText(html_content, "html"))
+
+            # Step 3: Encode message as base64url (required by Gmail API)
+            raw_message = base64.urlsafe_b64encode(msg.as_bytes()).decode("utf-8")
+
+            # Step 4: Send via Gmail API (HTTPS - works on HF)
+            send_body = json.dumps({"raw": raw_message}).encode("utf-8")
+            send_req = urllib.request.Request(
+                "https://gmail.googleapis.com/gmail/v1/users/me/messages/send",
+                data=send_body,
+                headers={
+                    "Authorization": f"Bearer {access_token}",
+                    "Content-Type": "application/json",
+                },
+                method="POST"
+            )
+            with urllib.request.urlopen(send_req) as resp:
+                result = json.loads(resp.read().decode("utf-8"))
+
+            print(f"[Email] Successfully sent via Gmail API to {to_email} (id={result.get('id')})")
             return True
+
         except Exception as e:
-            print(f"[Email] Gmail SMTP failed: {e}. Falling back to Resend...")
+            print(f"[Email] Gmail API failed: {e}. Falling back to Resend...")
 
     # 2. Fall back to Resend API
     import resend
     resend_api_key = os.environ.get("RESEND_API_KEY")
     if not resend_api_key:
-        print("WARNING: Neither SMTP nor RESEND_API_KEY are configured, skipping email.")
+        print("WARNING: No email credentials configured (Gmail API or Resend), skipping.")
         return False
-        
+
     resend.api_key = resend_api_key
     sender = os.environ.get("RESEND_SENDER_EMAIL", "onboarding@resend.dev")
-    
+
     try:
         params: resend.Emails.SendParams = {
             "from": sender,
@@ -739,11 +777,13 @@ def _send_email_resend(to_email: str, subject: str, html_content: str) -> bool:
             "html": html_content,
         }
         resend.Emails.send(params)
-        print(f"[Email] Successfully sent email via Resend to {to_email}")
+        print(f"[Email] Successfully sent via Resend to {to_email}")
         return True
     except Exception as e:
         print(f"ERROR sending email via Resend: {e}")
         return False
+
+
 
 # send_invoice is defined below at line 808.
 
