@@ -693,11 +693,39 @@ async def search_faq(
 
 def _send_email_resend(to_email: str, subject: str, html_content: str) -> bool:
     import os
-    import resend
+    import smtplib
+    from email.mime.multipart import MIMEMultipart
+    from email.mime.text import MIMEText
 
+    # 1. Try Gmail SMTP if configured
+    gmail_address = os.environ.get("GMAIL_ADDRESS")
+    gmail_app_password = os.environ.get("GMAIL_APP_PASSWORD")
+
+    if gmail_address and gmail_app_password:
+        try:
+            msg = MIMEMultipart("alternative")
+            msg["Subject"] = subject
+            msg["From"] = f"Crown & Crest <{gmail_address}>"
+            msg["To"] = to_email
+            
+            # Attach HTML content
+            part = MIMEText(html_content, "html")
+            msg.attach(part)
+            
+            # Connect to Gmail SMTP server (SSL on port 465)
+            with smtplib.SMTP_SSL("smtp.gmail.com", 465) as server:
+                server.login(gmail_address, gmail_app_password)
+                server.sendmail(gmail_address, to_email, msg.as_string())
+            print(f"[Email] Successfully sent email via Gmail SMTP to {to_email}")
+            return True
+        except Exception as e:
+            print(f"[Email] Gmail SMTP failed: {e}. Falling back to Resend...")
+
+    # 2. Fall back to Resend API
+    import resend
     resend_api_key = os.environ.get("RESEND_API_KEY")
     if not resend_api_key:
-        print("WARNING: RESEND_API_KEY missing in .env, skipping email.")
+        print("WARNING: Neither SMTP nor RESEND_API_KEY are configured, skipping email.")
         return False
         
     resend.api_key = resend_api_key
@@ -711,6 +739,7 @@ def _send_email_resend(to_email: str, subject: str, html_content: str) -> bool:
             "html": html_content,
         }
         resend.Emails.send(params)
+        print(f"[Email] Successfully sent email via Resend to {to_email}")
         return True
     except Exception as e:
         print(f"ERROR sending email via Resend: {e}")
