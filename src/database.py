@@ -14,10 +14,16 @@ PROJECT_ROOT = Path(__file__).parent.parent
 # Locally, fall back to the project data/ directory.
 if os.environ.get("SPACE_HOST") or os.environ.get("SPACE_ID"):
     _data_dir = Path("/data")
-    _data_dir.mkdir(parents=True, exist_ok=True)
-    DB_PATH = _data_dir / "hotel.db"
+    try:
+        _data_dir.mkdir(parents=True, exist_ok=True)
+        DB_PATH = _data_dir / "hotel.db"
+    except PermissionError:
+        # Fallback to ephemeral storage if HF persistent volume is not attached
+        DB_PATH = PROJECT_ROOT / "data" / "hotel.db"
+        DB_PATH.parent.mkdir(parents=True, exist_ok=True)
 else:
     DB_PATH = PROJECT_ROOT / "data" / "nexcell.db"
+    DB_PATH.parent.mkdir(parents=True, exist_ok=True)
 
 
 ROOM_TYPE_CODES = {
