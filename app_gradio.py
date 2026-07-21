@@ -424,12 +424,9 @@ def process_mock_payment(ref: str, card: str):
 
     def sync_send():
         try:
-            import httpx
-            # The MCP server runs on 8000. Send a sync POST request.
-            httpx.post("http://127.0.0.1:8000/api/invoice", json={
-                "booking_id": new_reference,
-                "email_address": booking["guest_email"]
-            }, timeout=15.0)
+            import asyncio
+            from src.mcp_server import _generate_invoice_html
+            asyncio.run(_generate_invoice_html(new_reference, booking["guest_email"]))
         except Exception as e:
             print(f"Failed to send invoice: {e}", flush=True)
             
@@ -539,6 +536,80 @@ with gr.Blocks(css=CSS, title="Crown & Crest — Olivia AI Receptionist") as dem
         outputs=[main_ui, payment_ui, pay_booking_id]
     )
 
+
+    # -----------------------------------------------------------------------
+    # HIDDEN API ENDPOINTS FOR NEXT.JS FRONTEND
+    # -----------------------------------------------------------------------
+    with gr.Group(visible=False):
+        api_ref_in = gr.Textbox()
+        api_name_in = gr.Textbox()
+        
+        api_guest_name = gr.Textbox()
+        api_guest_email = gr.Textbox()
+        api_guest_phone = gr.Textbox()
+        api_arrival_date = gr.Textbox()
+        api_checkout_date = gr.Textbox()
+        api_room_type = gr.Textbox()
+        api_branch = gr.Textbox()
+        
+        api_out = gr.JSON()
+        
+        def api_get_booking_fn(ref, name):
+            from src.database import get_booking, get_payment_history
+            b = get_booking(ref)
+            if not b:
+                return {"error": "Booking not found or name mismatch"}
+            if b["guest_name"].lower() != name.lower().strip():
+                return {"error": "Booking not found or name mismatch"}
+            
+            payments = get_payment_history(ref)
+            amount_paid = sum(p["amount_gbp"] for p in payments if p["status"] == "COMPLETED")
+            
+            b_dict = dict(b)
+            b_dict["amount_paid"] = amount_paid
+            return b_dict
+            
+        def api_create_booking_fn(name, email, phone, arrival, checkout, room, branch):
+            from src.database import create_booking, INVENTORY_CAPACITY
+            import datetime
+            try:
+                arr_dt = datetime.date.fromisoformat(arrival)
+                chk_dt = datetime.date.fromisoformat(checkout)
+                nights = (chk_dt - arr_dt).days
+                if nights <= 0:
+                    return {"error": "Checkout date must be after arrival date."}
+                
+                branch_key = branch.lower()
+                if branch_key not in INVENTORY_CAPACITY or room not in INVENTORY_CAPACITY[branch_key]:
+                    return {"error": "Invalid branch or room type."}
+                    
+                price_per_night = INVENTORY_CAPACITY[branch_key][room]["price_gbp"]
+                total_cost = price_per_night * nights
+                
+                ref = create_booking(
+                    guest_name=name,
+                    guest_email=email,
+                    branch=branch_key,
+                    room_type=room,
+                    arrival_date=arrival,
+                    nights=nights,
+                    price_per_night=price_per_night,
+                    total_cost=total_cost
+                )
+                return {"reference": ref}
+            except Exception as e:
+                import traceback
+                traceback.print_exc()
+                return {"error": str(e)}
+                
+        api_get_btn = gr.Button()
+        api_get_btn.click(api_get_booking_fn, inputs=[api_ref_in, api_name_in], outputs=[api_out], api_name="api_get_booking")
+        
+        api_create_btn = gr.Button()
+        api_create_btn.click(api_create_booking_fn, 
+            inputs=[api_guest_name, api_guest_email, api_guest_phone, api_arrival_date, api_checkout_date, api_room_type, api_branch],
+            outputs=[api_out], api_name="api_create_booking"
+        )
 
 if __name__ == "__main__":
     demo.launch(

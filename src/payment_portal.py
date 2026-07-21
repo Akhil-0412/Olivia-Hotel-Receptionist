@@ -93,16 +93,12 @@ async def process_payment(request: Request) -> RedirectResponse:
 
     # 3. Fire and forget the confirmation invoice generation
     import asyncio
-    import httpx
     async def send_invoice():
         try:
-            async with httpx.AsyncClient(timeout=10.0) as client:
-                await client.post("http://127.0.0.1:7860/api/invoice", json={
-                    "booking_id": new_reference,
-                    "email_address": booking["guest_email"]
-                })
-        except Exception:
-            pass
+            from src.mcp_server import _generate_invoice_html
+            await _generate_invoice_html(new_reference, booking["guest_email"])
+        except Exception as e:
+            print(f"[Invoice] Error: {e}")
     asyncio.create_task(send_invoice())
 
     return RedirectResponse(url=f"/api/pay/success/{new_reference}", status_code=303)
@@ -165,16 +161,12 @@ async def process_diff_payment(request: Request) -> RedirectResponse:
 
     # Fire and forget the updated confirmation invoice generation
     import asyncio
-    import httpx
     async def send_invoice():
         try:
-            async with httpx.AsyncClient(timeout=10.0) as client:
-                await client.post("http://127.0.0.1:7860/api/invoice", json={
-                    "booking_id": reference,
-                    "email_address": booking["guest_email"]
-                })
-        except Exception:
-            pass
+            from src.mcp_server import _generate_invoice_html
+            await _generate_invoice_html(reference, booking["guest_email"])
+        except Exception as e:
+            print(f"[Invoice] Error: {e}")
     asyncio.create_task(send_invoice())
 
     return RedirectResponse(url=f"/api/pay/success/{reference}", status_code=303)

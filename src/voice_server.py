@@ -193,26 +193,21 @@ async def entrypoint(ctx: JobContext) -> None:
 
 async def send_invoice_direct(booking_id: str, email_address: str) -> bool:
     """
-    Call the MCP server's /api/invoice endpoint directly over HTTP.
+    Call the invoice generator directly.
     This bypasses the LLM entirely — zero tokens consumed.
     Returns True on success, False on failure.
     """
-    url = "http://127.0.0.1:8000/api/invoice"
     try:
-        async with httpx.AsyncClient(timeout=10.0) as client:
-            resp = await client.post(url, json={
-                "booking_id": booking_id,
-                "email_address": email_address,
-            })
-            data = resp.json()
-            if data.get("success"):
-                print(f"[Invoice] Sent to {email_address}, file: {data.get('file')}")
-                return True
-            else:
-                print(f"[Invoice] ERROR: {data.get('error')}")
-                return False
+        from src.mcp_server import _generate_invoice_html
+        success, message = await _generate_invoice_html(booking_id, email_address)
+        if success:
+            print(f"[Invoice] Sent to {email_address}, file: {message}")
+            return True
+        else:
+            print(f"[Invoice] ERROR: {message}")
+            return False
     except Exception as e:
-        print(f"[Invoice] HTTP call failed: {e}")
+        print(f"[Invoice] Generation failed: {e}")
         return False
 
 
