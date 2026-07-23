@@ -1,8 +1,8 @@
 "use client";
 
 import React, { useState, useEffect, useRef, useCallback } from "react";
-import { motion, useSpring, useTransform, AnimatePresence } from "framer-motion";
-import { Mic, ArrowDown } from "lucide-react";
+import { motion, useSpring, AnimatePresence } from "framer-motion";
+import { Mic, ChevronLeft } from "lucide-react";
 
 interface PullToVoiceActivatorProps {
   onActivate: () => void;
@@ -10,20 +10,25 @@ interface PullToVoiceActivatorProps {
 }
 
 export default function PullToVoiceActivator({ onActivate, isActive }: PullToVoiceActivatorProps) {
-  const [pullProgress, setPullProgress] = useState(0); // 0 to 1
+  const [swipeProgress, setSwipeProgress] = useState(0); // 0 to 1
   const [isDragging, setIsDragging] = useState(false);
+  const startXRef = useRef<number | null>(null);
   const startYRef = useRef<number | null>(null);
-  const currentYRef = useRef<number>(0);
-  const PULL_THRESHOLD = 140; // Pixels to pull down to reach 100%
 
-  // Smooth spring physics for fluid Apple/Nothing style feedback
-  const springProgress = useSpring(0, { stiffness: 300, damping: 28 });
+  // Trackpad wheel accumulation
+  const wheelAccumulatorRef = useRef<number>(0);
+  const wheelTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+
+  const POINTER_THRESHOLD = 70; // Pixels for pointer drag
+  const WHEEL_THRESHOLD = 180;   // Accumulated deltaX for trackpad swipe
+
+  const springProgress = useSpring(0, { stiffness: 320, damping: 28 });
 
   useEffect(() => {
-    springProgress.set(pullProgress);
-  }, [pullProgress, springProgress]);
+    springProgress.set(swipeProgress);
+  }, [swipeProgress, springProgress]);
 
-  const progressPercent = Math.round(pullProgress * 100);
+  const progressPercent = Math.round(swipeProgress * 100);
 
   const triggerHaptic = useCallback(() => {
     if (typeof window !== "undefined" && "vibrate" in navigator) {
@@ -35,39 +40,96 @@ export default function PullToVoiceActivator({ onActivate, isActive }: PullToVoi
     }
   }, []);
 
-  const handlePointerDown = (e: React.PointerEvent | PointerEvent) => {
+  // ---------------------------------------------------------------------------
+  // 1. Laptop Touchpad / Trackpad 2-Finger Horizontal Swipe (Wheel Event)
+  // ---------------------------------------------------------------------------
+  useEffect(() => {
     if (isActive) return;
-    // Only initiate pull gesture when scrolled to top of page
-    if (typeof window !== "undefined" && window.scrollY > 10) return;
+
+    const handleWheel = (e: WheelEvent) => {
+      // Determine horizontal scroll delta from trackpad
+      let deltaX = e.deltaX;
+      if (e.shiftKey && Math.abs(e.deltaY) > Math.abs(e.deltaX)) {
+        deltaX = e.deltaY;
+      }
+
+      // Trackpad swipe left emits deltaX > 0
+      if (deltaX > 0 && Math.abs(deltaX) > Math.abs(e.deltaY)) {
+        wheelAccumulatorRef.current = Math.min(
+          Math.max(wheelAccumulatorRef.current + deltaX, 0),
+          WHEEL_THRESHOLD
+        );
+
+        const progress = Math.min(wheelAccumulatorRef.current / WHEEL_THRESHOLD, 1);
+        setSwipeProgress(progress);
+        setIsDragging(true);
+
+        // Reset decay timer
+        if (wheelTimeoutRef.current) clearTimeout(wheelTimeoutRef.current);
+        wheelTimeoutRef.current = setTimeout(() => {
+          wheelAccumulatorRef.current = 0;
+          setSwipeProgress(0);
+          setIsDragging(false);
+        }, 250);
+
+        if (progress >= 1) {
+          if (wheelTimeoutRef.current) clearTimeout(wheelTimeoutRef.current);
+          triggerHaptic();
+          wheelAccumulatorRef.current = 0;
+          setSwipeProgress(0);
+          setIsDragging(false);
+          onActivate();
+        }
+      }
+    };
+
+    window.addEventListener("wheel", handleWheel, { passive: true });
+    return () => {
+      window.removeEventListener("wheel", handleWheel);
+      if (wheelTimeoutRef.current) clearTimeout(wheelTimeoutRef.current);
+    };
+  }, [isActive, onActivate, triggerHaptic]);
+
+  // ---------------------------------------------------------------------------
+  // 2. Pointer Drag / Touch Swipe Listener
+  // ---------------------------------------------------------------------------
+  const handlePointerDown = (e: React.PointerEvent) => {
+    if (isActive) return;
+    startXRef.current = e.clientX;
     startYRef.current = e.clientY;
-    currentYRef.current = e.clientY;
     setIsDragging(true);
   };
 
   const handlePointerMove = useCallback((e: PointerEvent) => {
-    if (startYRef.current === null || isActive) return;
-    
-    const deltaY = e.clientY - startYRef.current;
-    if (deltaY > 0) {
-      const rawProgress = Math.min(Math.max(deltaY / PULL_THRESHOLD, 0), 1);
-      setPullProgress(rawProgress);
+    if (startXRef.current === null || startYRef.current === null || isActive) return;
+
+    const deltaX = startXRef.current - e.clientX; // Positive when dragging left
+    const deltaY = Math.abs(e.clientY - startYRef.current);
+
+    if (deltaX > 0 && deltaX > deltaY) {
+      const rawProgress = Math.min(Math.max(deltaX / POINTER_THRESHOLD, 0), 1);
+      setSwipeProgress(rawProgress);
 
       if (rawProgress >= 1) {
         triggerHaptic();
-        setPullProgress(0);
+        setSwipeProgress(0);
         setIsDragging(false);
+        startXRef.current = null;
         startYRef.current = null;
         onActivate();
       }
-    } else {
-      setPullProgress(0);
+    } else if (deltaY > deltaX && swipeProgress === 0) {
+      setIsDragging(false);
+      startXRef.current = null;
+      startYRef.current = null;
     }
-  }, [isActive, onActivate, triggerHaptic]);
+  }, [isActive, onActivate, triggerHaptic, swipeProgress]);
 
   const handlePointerUp = useCallback(() => {
-    if (startYRef.current !== null && !isActive) {
+    if (startXRef.current !== null && !isActive) {
       setIsDragging(false);
-      setPullProgress(0);
+      setSwipeProgress(0);
+      startXRef.current = null;
       startYRef.current = null;
     }
   }, [isActive]);
@@ -83,25 +145,21 @@ export default function PullToVoiceActivator({ onActivate, isActive }: PullToVoi
     };
   }, [handlePointerMove, handlePointerUp]);
 
-  // Circumference for 44px radius circle (2 * pi * 44 = ~276.46)
   const radius = 24;
   const circumference = 2 * Math.PI * radius;
-  const strokeDashoffset = circumference - pullProgress * circumference;
+  const strokeDashoffset = circumference - swipeProgress * circumference;
 
   return (
     <>
-      {/* Global Drag Catch Listener Bar at Top */}
       {!isActive && (
-        <motion.div
-          onPointerDown={handlePointerDown}
-          initial={{ opacity: 0, y: -20 }}
-          animate={{ opacity: 1, y: 0 }}
-          className="fixed top-20 left-0 right-0 z-30 flex flex-col items-center cursor-grab active:cursor-grabbing select-none pointer-events-auto"
-        >
-          {/* Subtle Top Pull Handle Badge */}
-          <motion.div 
-            className="flex items-center gap-3 px-5 py-2.5 rounded-full bg-zinc-900/80 border border-zinc-800/80 backdrop-blur-xl shadow-2xl text-xs font-medium text-zinc-400 hover:text-amber-400 transition-colors"
-            whileHover={{ scale: 1.02 }}
+        <div className="fixed top-1/2 right-0 -translate-y-1/2 z-40 flex items-center select-none pointer-events-auto">
+          {/* Right Edge Interactive Pull/Swipe Tab */}
+          <motion.div
+            onPointerDown={handlePointerDown}
+            initial={{ opacity: 0, x: 20 }}
+            animate={{ opacity: 1, x: 0 }}
+            whileHover={{ scale: 1.05, x: -4 }}
+            className="flex items-center gap-2.5 px-4 py-3 rounded-l-2xl bg-zinc-900/90 border-l border-y border-zinc-800 backdrop-blur-xl shadow-2xl text-xs font-semibold text-zinc-300 hover:text-amber-400 cursor-grab active:cursor-grabbing group shadow-[0_0_25px_rgba(0,0,0,0.5)]"
           >
             <div className="relative w-6 h-6 flex items-center justify-center">
               <svg className="w-6 h-6 transform -rotate-90">
@@ -123,30 +181,32 @@ export default function PullToVoiceActivator({ onActivate, isActive }: PullToVoi
                   className="text-amber-500"
                   fill="transparent"
                   strokeDasharray={2 * Math.PI * 10}
-                  strokeDashoffset={2 * Math.PI * 10 * (1 - pullProgress)}
+                  strokeDashoffset={2 * Math.PI * 10 * (1 - swipeProgress)}
                   strokeLinecap="round"
                 />
               </svg>
-              <ArrowDown className="w-3 h-3 text-amber-500 absolute animate-bounce" />
+              <ChevronLeft className="w-3.5 h-3.5 text-amber-500 absolute group-hover:-translate-x-0.5 transition-transform" />
             </div>
-            <span>{isDragging && pullProgress > 0 ? `Squeeze to activate (${progressPercent}%)` : "Pull down to talk to Olivia"}</span>
+
+            <span className="tracking-wide uppercase text-[11px] font-medium hidden sm:inline">
+              {isDragging && swipeProgress > 0 ? `Release (${progressPercent}%)` : "Drag to Speak"}
+            </span>
           </motion.div>
 
-          {/* Active Pull-Down Ring Indicator Overlay */}
+          {/* Active Swipe Progress Ring Overlay */}
           <AnimatePresence>
-            {isDragging && pullProgress > 0 && (
+            {(isDragging || swipeProgress > 0) && (
               <motion.div
-                initial={{ scale: 0.6, opacity: 0, y: 0 }}
-                animate={{ scale: 1 + pullProgress * 0.3, opacity: 1, y: pullProgress * 40 }}
+                initial={{ scale: 0.6, opacity: 0, x: 50 }}
+                animate={{ scale: 1 + swipeProgress * 0.2, opacity: 1, x: -swipeProgress * 60 }}
                 exit={{ scale: 0.5, opacity: 0 }}
                 transition={{ type: "spring", stiffness: 350, damping: 25 }}
-                className="mt-6 flex flex-col items-center gap-3"
+                className="fixed top-1/2 right-16 -translate-y-1/2 flex flex-col items-center gap-3 z-50 pointer-events-none"
               >
                 <div className="relative w-20 h-20 flex items-center justify-center">
-                  {/* Outer Glow Effect */}
-                  <div 
-                    className="absolute inset-0 rounded-full bg-amber-500/20 blur-xl transition-opacity" 
-                    style={{ opacity: pullProgress }} 
+                  <div
+                    className="absolute inset-0 rounded-full bg-amber-500/20 blur-xl transition-opacity"
+                    style={{ opacity: swipeProgress }}
                   />
 
                   <svg className="w-20 h-20 transform -rotate-90">
@@ -178,13 +238,13 @@ export default function PullToVoiceActivator({ onActivate, isActive }: PullToVoi
                   </div>
                 </div>
 
-                <span className="text-xs font-semibold tracking-widest text-amber-400 uppercase">
+                <span className="text-xs font-semibold tracking-widest text-amber-400 uppercase bg-zinc-900/90 px-3 py-1 rounded-full border border-zinc-800">
                   {progressPercent}%
                 </span>
               </motion.div>
             )}
           </AnimatePresence>
-        </motion.div>
+        </div>
       )}
     </>
   );

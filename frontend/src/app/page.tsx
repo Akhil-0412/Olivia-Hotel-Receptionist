@@ -38,9 +38,9 @@ export default function Home() {
 
   return (
     <main className="bg-zinc-950 min-h-screen text-zinc-50 overflow-x-hidden font-sans selection:bg-amber-500/30">
-      
+
       {/* Scroll Progress Line */}
-      <motion.div 
+      <motion.div
         className="fixed top-0 left-0 w-1 h-screen bg-gradient-to-b from-amber-400 to-amber-600 z-[100] origin-top drop-shadow-[0_0_8px_rgba(245,158,11,0.8)]"
         style={{ scaleY }}
       />
@@ -48,23 +48,23 @@ export default function Home() {
       {/* Navigation */}
       <nav className="fixed top-0 w-full z-40 bg-zinc-950/80 backdrop-blur-md border-b border-zinc-800/50">
         <div className="max-w-7xl mx-auto px-6 h-20 flex items-center justify-between">
-          <motion.div 
+          <motion.div
             initial={{ opacity: 0, x: -20 }}
             animate={{ opacity: 1, x: 0 }}
             className="flex items-center gap-3"
           >
             <div className="relative w-10 h-10 rounded-full overflow-hidden border border-amber-500/40 shadow-[0_0_15px_rgba(245,158,11,0.25)]">
-              <Image 
-                src="/images/logo.png" 
-                alt="Crown & Crest Logo" 
-                fill 
-                className="object-cover" 
+              <Image
+                src="/images/logo.png"
+                alt="Crown & Crest Logo"
+                fill
+                className="object-cover"
               />
             </div>
             <span className="font-serif text-xl tracking-widest text-amber-500 uppercase font-light">Crown & Crest</span>
           </motion.div>
-          
-          <motion.div 
+
+          <motion.div
             initial={{ opacity: 0, x: 20 }}
             animate={{ opacity: 1, x: 0 }}
             className="hidden md:flex gap-8 text-sm font-medium tracking-wide text-zinc-300 items-center"
@@ -82,7 +82,7 @@ export default function Home() {
       {/* Hero Section */}
       <section className="relative h-screen flex items-center justify-center">
         {/* Background Image with Parallax effect */}
-        <motion.div 
+        <motion.div
           className="absolute inset-0 z-0"
           initial={{ scale: 1.1, opacity: 0 }}
           animate={{ scale: 1, opacity: 1 }}
@@ -99,7 +99,7 @@ export default function Home() {
         </motion.div>
 
         <div className="relative z-10 max-w-4xl mx-auto px-6 text-center mt-20">
-          <motion.p 
+          <motion.p
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ delay: 0.3 }}
@@ -107,13 +107,13 @@ export default function Home() {
           >
             Welcome to Unparalleled Luxury
           </motion.p>
-          <motion.h1 
+          <motion.h1
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ delay: 0.5 }}
             className="text-5xl md:text-7xl lg:text-8xl font-serif mb-8 text-zinc-100 leading-tight"
           >
-            Experience the <br className="hidden md:block"/> Art of Hospitality
+            Experience the <br className="hidden md:block" /> Art of Hospitality
           </motion.h1>
           <motion.div
             initial={{ opacity: 0, y: 20 }}
@@ -129,7 +129,7 @@ export default function Home() {
             </Link>
             <p className="text-zinc-400 italic text-sm mt-4 sm:mt-0 sm:absolute sm:-bottom-12 flex items-center justify-center gap-2">
               <span className="inline-block w-2 h-2 rounded-full bg-amber-500 animate-ping" />
-              Pull down anywhere on screen to speak with Olivia
+              Speak with Olivia
             </p>
           </motion.div>
         </div>
@@ -138,7 +138,7 @@ export default function Home() {
       {/* About / Experience */}
       <section id="about" className="py-32 bg-zinc-950 relative">
         <div className="max-w-7xl mx-auto px-6 grid md:grid-cols-2 gap-16 items-center">
-          <motion.div 
+          <motion.div
             initial={{ opacity: 0, x: -50 }}
             whileInView={{ opacity: 1, x: 0 }}
             viewport={{ once: true, margin: "-100px" }}
@@ -152,13 +152,13 @@ export default function Home() {
               Whether you are travelling for business or leisure, experience a seamless blend of historic charm and cutting-edge amenities.
             </p>
           </motion.div>
-          <motion.div 
+          <motion.div
             initial={{ opacity: 0, scale: 0.9 }}
             whileInView={{ opacity: 1, scale: 1 }}
             viewport={{ once: true, margin: "-100px" }}
             className="relative h-[600px] w-full rounded-2xl overflow-hidden"
           >
-            <Image 
+            <Image
               src="/images/about-lounge.png"
               alt="Luxury Lounge"
               fill
@@ -221,8 +221,8 @@ export default function Home() {
       {/* Culinary & Wellness (Side by Side or Stacked) */}
       <section id="dining" className="py-32 bg-zinc-950">
         <div className="max-w-7xl mx-auto px-6 grid md:grid-cols-2 gap-8">
-          
-          <motion.div 
+
+          <motion.div
             initial={{ opacity: 0, y: 30 }}
             whileInView={{ opacity: 1, y: 0 }}
             viewport={{ once: true, margin: "-100px" }}
@@ -236,7 +236,7 @@ export default function Home() {
             </div>
           </motion.div>
 
-          <motion.div 
+          <motion.div
             initial={{ opacity: 0, y: 30 }}
             whileInView={{ opacity: 1, y: 0 }}
             viewport={{ once: true, margin: "-100px" }}
@@ -263,7 +263,7 @@ export default function Home() {
             { icon: Clock, title: "24/7 Concierge", desc: "Always at your service" },
             { icon: Wifi, title: "High-Speed Wi-Fi", desc: "Complimentary in all areas" },
           ].map((feature, i) => (
-            <motion.div 
+            <motion.div
               key={i}
               initial={{ opacity: 0, y: 20 }}
               whileInView={{ opacity: 1, y: 0 }}
@@ -289,15 +289,15 @@ export default function Home() {
       </footer>
 
       {/* Pull Down Gesture Activator */}
-      <PullToVoiceActivator 
-        onActivate={() => setIsVoiceActive(true)} 
-        isActive={isVoiceActive} 
+      <PullToVoiceActivator
+        onActivate={() => setIsVoiceActive(true)}
+        isActive={isVoiceActive}
       />
 
       {/* LiveKit Morphing Voice Interface */}
-      <OliviaWidget 
-        isOpen={isVoiceActive} 
-        onClose={() => setIsVoiceActive(false)} 
+      <OliviaWidget
+        isOpen={isVoiceActive}
+        onClose={() => setIsVoiceActive(false)}
       />
 
     </main>
