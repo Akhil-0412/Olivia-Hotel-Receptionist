@@ -37,7 +37,7 @@ export default function Home() {
   const scaleY = useTransform(scrollYProgress, [0, 1], [0, 1]);
 
   return (
-    <main className="bg-zinc-950 min-h-screen text-zinc-50 overflow-hidden font-sans selection:bg-amber-500/30">
+    <main className="bg-zinc-950 min-h-screen text-zinc-50 overflow-x-hidden font-sans selection:bg-amber-500/30">
       
       {/* Scroll Progress Line */}
       <motion.div 
