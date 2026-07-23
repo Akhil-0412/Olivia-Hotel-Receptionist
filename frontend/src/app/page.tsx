@@ -1,9 +1,11 @@
 "use client";
 
+import { useState } from "react";
 import Image from "next/image";
 import { motion, useScroll, useTransform } from "framer-motion";
 import { Card, CardContent } from "@/components/ui/card";
 import OliviaWidget from "@/components/OliviaWidget";
+import PullToVoiceActivator from "@/components/PullToVoiceActivator";
 import { Button } from "@/components/ui/button";
 import { MapPin, Star, Clock, Wifi, Calendar, User } from "lucide-react";
 import Link from "next/link";
@@ -30,6 +32,7 @@ const rooms = [
 ];
 
 export default function Home() {
+  const [isVoiceActive, setIsVoiceActive] = useState(false);
   const { scrollYProgress } = useScroll();
   const scaleY = useTransform(scrollYProgress, [0, 1], [0, 1]);
 
@@ -48,9 +51,16 @@ export default function Home() {
           <motion.div 
             initial={{ opacity: 0, x: -20 }}
             animate={{ opacity: 1, x: 0 }}
-            className="flex items-center gap-2"
+            className="flex items-center gap-3"
           >
-            <span className="text-2xl">👑</span>
+            <div className="relative w-10 h-10 rounded-full overflow-hidden border border-amber-500/40 shadow-[0_0_15px_rgba(245,158,11,0.25)]">
+              <Image 
+                src="/images/logo.png" 
+                alt="Crown & Crest Logo" 
+                fill 
+                className="object-cover" 
+              />
+            </div>
             <span className="font-serif text-xl tracking-widest text-amber-500 uppercase font-light">Crown & Crest</span>
           </motion.div>
           
@@ -113,11 +123,14 @@ export default function Home() {
           >
             {/* The primary CTA is Olivia (Widget handles its own button, but we can trigger it or add a manual booking button here) */}
             <Link href="/book">
-              <Button className="bg-transparent border border-zinc-500 hover:border-amber-500 hover:bg-amber-500/10 text-white px-8 py-6 rounded-full text-lg tracking-wide uppercase font-medium transition-all duration-300 flex items-center gap-2">
-                <Calendar className="w-5 h-5" /> Manual Booking
+              <Button className="bg-amber-500 hover:bg-amber-400 text-zinc-950 px-8 py-6 rounded-full text-lg tracking-wide uppercase font-semibold transition-all duration-300 flex items-center gap-2 shadow-[0_0_25px_rgba(245,158,11,0.3)] hover:scale-105">
+                <Calendar className="w-5 h-5" /> Book Now
               </Button>
             </Link>
-            <p className="text-zinc-500 italic text-sm mt-4 sm:mt-0 sm:absolute sm:-bottom-12">Or click the microphone to speak with Olivia, our AI Receptionist.</p>
+            <p className="text-zinc-400 italic text-sm mt-4 sm:mt-0 sm:absolute sm:-bottom-12 flex items-center justify-center gap-2">
+              <span className="inline-block w-2 h-2 rounded-full bg-amber-500 animate-ping" />
+              Pull down anywhere on screen to speak with Olivia
+            </p>
           </motion.div>
         </div>
       </section>
@@ -275,8 +288,17 @@ export default function Home() {
         </div>
       </footer>
 
-      {/* LiveKit Voice Widget */}
-      <OliviaWidget />
+      {/* Pull Down Gesture Activator */}
+      <PullToVoiceActivator 
+        onActivate={() => setIsVoiceActive(true)} 
+        isActive={isVoiceActive} 
+      />
+
+      {/* LiveKit Morphing Voice Interface */}
+      <OliviaWidget 
+        isOpen={isVoiceActive} 
+        onClose={() => setIsVoiceActive(false)} 
+      />
 
     </main>
   );
